@@ -44,7 +44,7 @@ The source folder structure comes from the scaffold. Propose any reorganisation 
 
 ## Contract and tooling
 
-- **Base URL:** from `EXPO_PUBLIC_API_URL`, never hardcoded. Production: `https://<your-service>.onrender.com`. Keep `.env.example` with the variable name and no secret values.
+- **Base URL:** from `EXPO_PUBLIC_API_URL`, never hardcoded. Production: `https://ai-habit-coach-6vmk.onrender.com`. Keep `.env.example` with the variable name and no secret values.
 - **`api/openapi.json` is the source of truth for request and response shapes.** Never edit it by hand. The backend has a test that fails whenever its contract changes, so the human will tell you when to replace this copy.
 - **Typed client:** generate types from the contract instead of writing them by hand. Add an npm script such as `api:types` that runs `openapi-typescript api/openapi.json -o src/api/schema.d.ts`, and use the `openapi-fetch` runtime (check each tool's current docs; CLI options change between versions). Commit the generated file. After the contract is replaced, re-run the script and let the TypeScript errors show what needs adapting.
 - The live service also serves the same document at `<base>/openapi.json`. A script that downloads it is acceptable, but remember the server may be asleep, so allow a long timeout.
