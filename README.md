@@ -1,56 +1,64 @@
-# Welcome to your Expo app 👋
+# AI Habit Coach: mobile app
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+React Native (Expo SDK 58, Expo Router, TypeScript) client for the AI Habit Coach backend. iOS and Android only.
 
-## Get started
+Product behaviour is in `docs/FRONTEND_BRIEF.md`, visual design in `docs/DESIGN.md`, and the API contract in `api/openapi.json`.
 
-1. Install dependencies
+## Run it
+
+1. Install dependencies:
 
    ```bash
    npm install
    ```
 
-2. Start the app
+2. Create your env file and set the API URL:
 
    ```bash
-   npx expo start
+   cp .env.example .env
    ```
 
-In the output, you'll find options to open the app in a
+   Open `.env` and set `EXPO_PUBLIC_API_URL` (no trailing slash):
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+   | Where the app runs | Value |
+   |---|---|
+   | Android emulator, backend on this computer | `http://10.0.2.2:8000` |
+   | iOS simulator, backend on this computer | `http://localhost:8000` |
+   | Physical device on the same Wi-Fi | `http://<computer-LAN-IP>:8000` |
+   | Production (Render, may take ~90 s to wake up) | `https://ai-habit-coach-6vmk.onrender.com` |
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+   The app throws at startup with a clear message if the variable is missing or not an `http(s)` URL. There is no fallback. The value is bundled into the app at build time, so it is not secret; restart with `npx expo start -c` after changing it.
 
-## Get a fresh project
+3. Start the dev server:
 
-When you're ready, run:
+   ```bash
+   npm start        # then press a (Android) or i (iOS), or scan the QR code in Expo Go
+   ```
+
+Push notifications will need a **development build** (not Expo Go) once they are added in a later milestone.
+
+## Checks
+
+CI runs the same commands.
 
 ```bash
-npm run reset-project
+npm run lint        # ESLint (expo lint)
+npm run typecheck   # tsc --noEmit
+npm test            # Jest (jest-expo + React Native Testing Library)
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+## Regenerating API types
 
-### Other setup steps
+`src/api/schema.d.ts` is generated from `api/openapi.json` and committed. When the backend contract changes, replace `api/openapi.json` (never edit it by hand), then run:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm run api:types
+```
 
-## Learn more
+Commit the result. CI re-runs this command and fails if `src/api/schema.d.ts` changes, which catches stale types.
 
-To learn more about developing your project with Expo, look at the following resources:
+The generator is `openapi-typesafe`: `openapi-typescript` does not install with TypeScript 6 (its peer range is TypeScript 5). Both produce the `paths` type that `openapi-fetch` uses.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Layout
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+See "Implementation notes" at the end of `docs/FRONTEND_BRIEF.md` for the current folder structure, package decisions and milestone status.

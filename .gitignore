@@ -41,3 +41,13 @@ example
 # generated native folders
 /ios
 /android
+
+# Track .agents/skills/, but ignore temporary runtime files
+.agents/cache/
+.agents/tmp/
+.agents/*.log
+
+# real env files (secrets/local config). .env.example is intentionally tracked.
+.env
+.env.*
+!.env.example

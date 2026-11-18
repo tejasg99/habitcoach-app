@@ -1,17 +1,14 @@
-import { Text, View, StyleSheet } from "react-native";
+/**
+ * src/app/index.tsx
+ *
+ * Milestone 1 placeholder: a blank screen. Milestone 2 replaces it with the
+ * startup gate that routes to the auth stack or the main tabs.
+ */
 
-export default function Index() {
-  return (
-    <View style={styles.container}>
-      <Text>Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
-  );
+import { View } from 'react-native';
+
+export default function IndexScreen() {
+  // Layout only: fill the screen. No colours yet; theme tokens arrive with
+  // the theme milestone (the design doc forbids hex values in components).
+  return <View style={{ flex: 1 }} />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

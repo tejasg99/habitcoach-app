@@ -1,0 +1,49 @@
+# CI for the AI Habit Coach app. This repo's root is the app folder, so there
+# are no path filters and no working-directory.
+#
+# Steps: install -> lint -> type-check -> test -> API type drift check.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    name: Lint, type-check, test, API types
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Expo SDK 58 requires Node ^22.13 or newer (see expo's "engines"),
+      # so Node 22 is the oldest line that is supported.
+      - name: Set up Node.js (with npm cache keyed on package-lock.json)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` installs exactly what package-lock.json says.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Regenerate src/api/schema.d.ts from api/openapi.json. If the result
+      # differs from the committed file, the generated types are stale:
+      # run `npm run api:types` locally and commit the change.
+      - name: API types drift check
+        run: |
+          npm run api:types
+          git diff --exit-code src/api/schema.d.ts

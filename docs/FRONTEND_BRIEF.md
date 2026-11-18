@@ -5,9 +5,9 @@
 
 ## Starting state and how to begin
 
-- This repository (`habitcoach-app`) starts from a **basic Expo (React Native, native-only) scaffold created by the human**. It is the only code in your workspace. The backend is a **separate repository that you cannot see**, so everything you need to know about it is in `api/openapi.json` and in this brief.
+- This repository (`habitcoach-app`) starts from a **basic Expo (React Native, native-only) scaffold created by the human** in /frontend folder. The backend is a **separate repository you can see in /backend folder**.
 - **Your first task is to audit, not rebuild.** Read the scaffold: Expo SDK version, template, router, TypeScript configuration, existing scripts and folders. Keep its choices. Do not regenerate the project, switch frameworks or change the Expo SDK without asking. Where the suggested stack below differs from what the scaffold uses, adapt to the scaffold and tell the human what differs.
-- **The UI design document** is added by the human at `docs/UI_DESIGN.md` (assets in `docs/design/`) before screen work starts. It is the source of truth for visual design, layout, component styling, spacing, motion and copy tone.
+- **The UI design document** is added by the human at `docs/DESIGN.md` before screen work starts. It is the source of truth for visual design, layout, component styling, spacing, motion and copy tone.
   - Precedence: the design document wins on visuals and UX; this brief and the contract win on API behaviour and data rules. If they conflict on anything else, flag it.
   - If a screen is not covered by the design document, **stop and ask**. Do not invent a visual design.
   - Milestones 1 and 2 (foundation and auth plumbing) do not depend on the design document.
@@ -19,7 +19,7 @@
 - Ask before adding a major dependency or restructuring the project.
 - Never commit secrets or `.env` files. Keep `.env.example` current.
 - Some things you cannot do yourself: test push on a physical device, log in to EAS, or know the EAS project id. For these, write the code plus a short manual test procedure for the human, and ask for the values. **Never invent IDs.**
-- If the backend seems wrong or missing something, record it in `docs/BACKEND_REQUESTS.md` (what, why, suggested change). Then continue with a workaround, or stop if you are blocked. Do not try to recreate or modify the backend.
+- If the backend seems wrong or missing something, record it in `docs/BACKEND_REQUESTS.md` (what, why, suggested change). Then continue with a workaround, or stop if you are blocked. Do not try to recreate or modify the backend. You will only work in the frontend folder.
 
 ## Product summary
 
@@ -34,8 +34,7 @@ habitcoach-app/
   api/openapi.json         copy of the backend contract (replaced by the human when the API changes)
   docs/
     FRONTEND_BRIEF.md      this file
-    UI_DESIGN.md           provided by the human before screen work
-    design/                design assets
+    DESIGN.md           provided by the human before screen work
     BACKEND_REQUESTS.md    created by you when needed
   ...                      app source and config: whatever the Expo scaffold provides
 ```
@@ -290,6 +289,79 @@ This repository has its own CI (GitHub Actions): lint, type-check and tests on e
 
 ## Open questions for the development plan
 
-- Onboarding as one form or a step-by-step wizard (the design document may decide this).
-- Chart library choice.
+- Onboarding as one form or a step-by-step wizard (the design document may decide this). **Resolved: step-by-step wizard.**
+- Chart library choice. **Resolved: Victory Native XL (`victory-native` + `@shopify/react-native-skia`).**
 - Empty-state and error copy tone (the design document may decide this).
+
+## Implementation notes (kept current by the agent)
+
+### Local layout
+
+```
+Habit-coach/
+  backend/    GitHub repo: ai-habit-coach (read-only context for this work)
+  frontend/   GitHub repo: habitcoach-app (this repo; its root is this folder)
+```
+
+### Folder structure after Milestone 1
+
+```
+api/openapi.json          backend contract (replaced by the human, never edited)
+docs/                     FRONTEND_BRIEF.md, DESIGN.md
+src/
+  api/                    schema.d.ts (generated), client.ts (typed openapi-fetch client, no auth yet)
+  app/                    _layout.tsx (imports the env module), index.tsx (blank screen)
+  lib/                    env.ts (parseApiUrl + env), storage.ts (SecureStore token helpers), formatting.ts
+  __tests__/              env, client and formatting tests
+  components/ features/ hooks/ theme/   empty placeholders (.gitkeep) for later milestones
+.github/workflows/ci.yml  lint, typecheck, test, API types drift check
+.env.example              EXPO_PUBLIC_API_URL only
+```
+
+### Planned structure (folders are created when a milestone needs them)
+
+```
+src/api/        schema.d.ts, client.ts
+src/app/        Expo Router routes: (auth)/, (tabs)/, onboarding/
+src/components/ ui/, layout/
+src/features/   auth, today, plan, progress, settings, notifications
+src/theme/      tokens, typography, shadows, ThemeProvider, useTheme
+src/lib/        env, storage, formatting, startup (pure, testable code)
+src/hooks/
+docs/
+.github/workflows/ci.yml
+```
+
+### Package decisions
+
+- **Types generator: `openapi-typesafe` stays.** `openapi-typescript` was tried first and `npm install` fails with ERESOLVE (it peers on `typescript@^5`, the project is on TypeScript 6). Not forced. `api:types` runs `openapi-typesafe`; its `paths` output type-checks against `openapi-fetch`'s `createClient<paths>` (see `src/api/client.ts` and `src/__tests__/client.test.ts`).
+- **Charts:** Victory Native XL (`victory-native` with `@shopify/react-native-skia`), installed in the progress milestone after a compatibility check.
+- **Tabs:** Expo Router `Tabs` with a custom floating `tabBar` (not `NativeTabs` / `@expo/ui`).
+- **TypeScript 6**, strict. Expo SDK 58, React Compiler and typed routes kept from the scaffold.
+- **Tests:** `jest-expo` + `@testing-library/react-native` v14 with its built-in matchers (registered in `jest.setup.js`). The deprecated `@testing-library/jest-native` was removed.
+- **Lint:** `eslint` + `eslint-config-expo` (flat config), run through `expo lint`.
+- **CI:** Node 22 (Expo SDK 58 needs Node ^22.13 or newer), `npm ci` on the committed `package-lock.json`.
+- **Removal candidates (installed, unused for now):** `@expo/ui`, `expo-glass-effect`, `expo-symbols`.
+
+### Deviations from the brief
+
+- Design doc is `docs/DESIGN.md` (the brief says `UI_DESIGN.md`).
+- Backend is visible locally in `../backend/` (read-only).
+- `expo`, `expo-router`, `expo-web-browser` and `@expo/ui` were bumped to the SDK 58 patch versions `expo-doctor` expects.
+- The X-Request-ID header was not added in M1; it belongs with the client middleware in Milestone 2.
+- `EXPO_PUBLIC_API_URL` must be set (copy `.env.example` to `.env`); the app throws at startup otherwise.
+
+### Milestone status
+
+| Milestone | Status |
+|---|---|
+| M1 Foundation | Done |
+| M1b | Not started |
+| M2 | Not started |
+| M3 | Not started |
+| M4 | Not started |
+| M5 | Not started |
+| M6 | Not started |
+| M7 | Not started |
+| M8 | Not started |
+| M9 | Not started |
