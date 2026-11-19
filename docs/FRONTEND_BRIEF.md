@@ -318,6 +318,26 @@ src/
 .env.example              EXPO_PUBLIC_API_URL only
 ```
 
+### Folder structure added in Milestone 1b (design system)
+
+```
+src/theme/
+  tokens.ts           every raw value (hex, sizes, radii, shadows, type scale); only place hex is allowed
+  contrast.ts         WCAG contrast maths (used by the contrast test)
+  preferences.ts      AsyncStorage load/save + validation of { mode, accent }; resolveMode()
+  fonts.ts            useAppFonts(): DM Sans 400/500/600/700 via @expo-google-fonts
+  ThemeProvider.tsx   ThemeProvider, useTheme(), useThemedStyles(); StatusBar / Appearance / SystemUI sync
+  index.ts            public exports ('@/theme')
+src/components/ui/    Text, Screen, Card, HeroCard, Button, Chip, IconButton, Input,
+                      ProgressRing, ProgressBar, Skeleton, TabBar (+ useProgressAnimation.ts, index.ts)
+src/app/gallery.tsx   DEV-ONLY design gallery (redirects to "/" when __DEV__ is false)
+src/__tests__/        contrast.test.ts (WCAG, all modes and accents), theme-preferences.test.ts
+```
+
+Usage: `const t = useTheme()` gives resolved tokens (`t.colors`, `t.spacing`, `t.radius`, `t.shadows`, `t.type`), the
+user's `modePreference` / `accent`, and setters. `useThemedStyles((t) => ({ ... }))` builds a memoised StyleSheet.
+The root layout holds the splash screen until fonts and the saved theme are loaded.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -341,6 +361,9 @@ docs/
 - **Tests:** `jest-expo` + `@testing-library/react-native` v14 with its built-in matchers (registered in `jest.setup.js`). The deprecated `@testing-library/jest-native` was removed.
 - **Lint:** `eslint` + `eslint-config-expo` (flat config), run through `expo lint`.
 - **CI:** Node 22 (Expo SDK 58 needs Node ^22.13 or newer), `npm ci` on the committed `package-lock.json`.
+- **M1b: no new dependencies.** Everything needed was already installed (`@expo-google-fonts/dm-sans`, `expo-font`, `expo-linear-gradient`, `expo-haptics`, `react-native-svg`, `lucide-react-native`, `react-native-reanimated`, AsyncStorage, `expo-system-ui`). `expo-navigation-bar` was NOT added (not pre-approved); the Android navigation bar follows the resolved mode through `Appearance.setColorScheme` (see deviations).
+- **Lint guard rails (M1b):** `eslint.config.js` forbids `borderWidth` (and per-side variants) anywhere in `src/`, and raw hex / `rgb()` / `hsl()` string literals outside `src/theme/` and `src/__tests__/`.
+- **Jest:** AsyncStorage is mocked globally in `jest.setup.js`.
 - **Removal candidates (installed, unused for now):** `@expo/ui`, `expo-glass-effect`, `expo-symbols`.
 
 ### Deviations from the brief
@@ -351,12 +374,23 @@ docs/
 - The X-Request-ID header was not added in M1; it belongs with the client middleware in Milestone 2.
 - `EXPO_PUBLIC_API_URL` must be set (copy `.env.example` to `.env`); the app throws at startup otherwise.
 
+### Deviations and additions in Milestone 1b
+
+- **New tokens not in the design doc:** `accentText`, `successText`, `warningText`, `dangerText`, `successSoft` / `warningSoft` / `dangerSoft` (the doc's soft values, now named), `onHero`, `onHeroTrack`. Reason: the doc's light-mode `accent` is only about 4.0 to 4.4:1 on `accentSoft` / `surfaceMuted`, and the semantic colours reach only about 4.3:1 on their soft backgrounds, which misses the doc's own 4.5:1 text rule. `accentText` is `accentDeep` in light mode and `accent` in dark mode; `*Text` are darker shades in light mode. Fills still use the exact doc values. The design doc should be updated with these.
+- **`textTertiary` is below 4.5:1** (light: about 3.2:1 on `bg`, 3.0:1 on `surfaceMuted`). Tokens kept exactly as specified. The test asserts 3:1 on `bg` / `surface` / `surfaceRaised` (hints, disabled, inactive icons) and Input placeholders use `textSecondary` instead.
+- **`micro` is uppercase** per the type table, but the tab bar passes `uppercase={false}` so tab labels stay sentence case.
+- **Hero glow omitted** (doc marks it optional): lightening the corner would drop white text under 4.5:1 on Coral.
+- **Android navigation bar:** driven by `Appearance.setColorScheme('light' | 'dark' | 'auto')` plus `SystemUI.setBackgroundColorAsync`, instead of `expo-navigation-bar`. Needs a check on a real Android device.
+- **Splash colours** in `app.json` changed from the scaffold blue to `#F7F5F2` (light) / `#141311` (dark) so there is no blue flash. The Android adaptive icon background is still the scaffold blue (icons are out of scope).
+- `/gallery` is cast to `Href` in `src/app/index.tsx` because the generated typed-routes file is stale until the dev server regenerates it.
+- The `unslop` skill was loaded, but `docs/DESIGN.md` is binding and fully specified, so it served as the direction; the skill's generic defaults (weights, tracking, no uppercase) did not override the doc.
+
 ### Milestone status
 
 | Milestone | Status |
 |---|---|
 | M1 Foundation | Done |
-| M1b | Not started |
+| M1b Design system | Done (visual review of the gallery on device pending) |
 | M2 | Not started |
 | M3 | Not started |
 | M4 | Not started |

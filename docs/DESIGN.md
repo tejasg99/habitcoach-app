@@ -97,6 +97,24 @@ How the tokens are used:
 
 Contrast: every light-mode `accent` / `onAccent` pair meets 4.5:1. Dark-mode accents are lighter, so they use dark `onAccent` ink.
 
+`accentText` is the accent used **as text** (links, selected chip label, soft and ghost button labels). Light-mode `accent` only reaches about 4.0 to 4.4:1 on `accentSoft` and `surfaceMuted`, so `accentText` = `accentDeep` in light mode and `accent` in dark mode. Fills (buttons, progress, checks) still use `accent`.
+
+### 3.2a Text-on-soft semantic tokens
+
+Added in M1b so text on soft backgrounds meets 4.5:1. Each semantic color also has a `*Soft` background (table above) and a `*Text` color for text on it.
+
+| Token | Light | Dark |
+|---|---|---|
+| `successText` | `#1F5E43` | `#6CC49A` |
+| `warningText` | `#7F4900` | `#F2B24A` |
+| `dangerText` | `#A82E27` | `#F0766F` |
+
+Hero helpers: `onHero` = `#FFFFFF` (text on the hero gradient) and `onHeroTrack` = `rgba(255,255,255,0.28)` (ring/bar track on the hero).
+
+### 3.2b Known contrast exception
+
+`textTertiary` is about 3.2:1 on `bg` in light mode, so it is for hints, disabled states and inactive icons only, never body copy. It is tested at 3:1 on `bg`, `surface` and `surfaceRaised`. Input placeholders use `textSecondary` because tertiary on `surfaceMuted` is below 3:1 in light mode.
+
 ### 3.4 Hero gradient
 
 One soft gradient is allowed on the top hero card of Today and Progress. It is never used for buttons, text, list rows or backgrounds.
@@ -110,7 +128,7 @@ One soft gradient is allowed on the top hero card of Today and Progress. It is n
 | Rose | `#C2415D` → `#9E3049` | `#AA3A52` → `#4A1E2A` |
 
 - Text on the hero is always white (`#FFFFFF`) in both modes.
-- Optional glow: a radial white overlay at 12 to 18% opacity in the top-left corner for softness.
+- Optional glow: a radial white overlay at 12 to 18% opacity in the top-left corner for softness. Not implemented: it drops white text below 4.5:1 on lighter accents such as Coral.
 - Implementation: `expo-linear-gradient`.
 
 ### 3.5 Data visualization
@@ -329,3 +347,4 @@ export type Theme = {
 | Date | Change |
 |---|---|
 | 2026-11-17 | Initial version |
+| 2026-11-19 | M1b: added `accentText`, `*Text` semantic tokens, `onHero` / `onHeroTrack`, the `textTertiary` exception, and noted the hero glow is not implemented |
