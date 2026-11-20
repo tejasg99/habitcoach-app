@@ -391,6 +391,35 @@ How the pieces fit:
   "Generate my plan" empty state). Network/5xx on the first two -> error screen; the user stays logged in.
   Re-runs (without the warm-up) after login. Background-task hook is empty until M7/M8.
 
+### Folder structure added in Milestone 3 (onboarding)
+
+```
+src/features/onboarding/
+  labels.ts           THE display labels for goal / fitness_level / dietary_pref, typed Record<EnumFromContract, ...>;
+                      GOALS / FITNESS_LEVELS / DIETARY_PREFS derived from them (enumValues); equipment suggestions
+  schema.ts           zod onboardingSchema (enums, equipment rules mirrored from the server, HH:MM:SS, timezone),
+                      equipmentItemSchema, addEquipmentItem(), defaultOnboardingValues()
+  request.ts          toProfileRequest() (form values -> ProfileIn body), PROFILE_FIELD_MAP (422 loc -> form field)
+  wizard.ts           ONBOARDING_STEPS (id, question, subtitle, fields), wizardReducer (next/back/goTo, clamped),
+                      firstStepWithError()
+  components/         ProgressDots, ChoiceList (radio cards), EquipmentStep (chips), ReminderStep (switch, time
+                      picker, time zone note), FieldMessage (error line for non-text answers)
+src/lib/timezone.ts   deviceTimeZone() (Intl, falls back to "UTC")
+src/lib/startup.ts    + continueToTabs(): steps 5-6 of the gate on their own
+src/features/auth/session.ts  + onboardingCompleted(): continues the gate after the profile is saved
+src/app/onboarding.tsx        the wizard screen (replaces the placeholder)
+src/__tests__/        onboarding-schema, onboarding-request, onboarding-wizard (+ continueToTabs in startup)
+```
+
+How it fits: one react-hook-form instance holds all answers; the reducer only picks the visible step, so Back
+(button or Android back) keeps everything. Continue runs `trigger(step.fields)`. Finish setup sends
+`PUT /onboarding/me` with every field (PUT resets omitted fields, so `reminders_enabled: false` is always sent
+explicitly). A 422 is split onto fields with `splitFieldErrors(error, PROFILE_FIELD_MAP)` and the wizard jumps to
+the first step with an error. Offline / timeout / 5xx show a danger Notice above the button (plus Copy debug info
+for 5xx); pressing Finish setup again retries. A slow cold start shows the global waking toast while the button
+keeps its spinner. On success `onboardingCompleted()` runs the plan check and flips the phase to `ready`; the
+button keeps its spinner until the tabs open.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -421,6 +450,9 @@ docs/
 - **M2: no new dependencies.** Uses the already-installed `openapi-fetch`, `expo-secure-store`, `react-hook-form`,
   `zod`, `@hookform/resolvers`. TanStack Query is not wired yet (nothing needs caching until Milestone 3/4).
 - **M2 follow-up: `expo-clipboard`** (approved by the owner, installed with `npx expo install`) for "Copy debug info".
+- **M3: no new dependencies.** `@react-native-community/datetimepicker` (already installed, config plugin already
+  in `app.json`), `react-hook-form`, `zod`, `@hookform/resolvers`, `expo-haptics`, Reanimated. TanStack Query is
+  still not wired (onboarding is a single mutation; Plan and Today in M4/M5 need it).
 
 ### Deviations from the brief
 
@@ -473,6 +505,34 @@ docs/
 - The `unslop` skill was applied to copy and restraint (no exclamation marks, sentence case, one primary action,
   one rich element per screen); `docs/DESIGN.md` stayed binding for every visual value.
 
+### Deviations and additions in Milestone 3
+
+- **Equipment item rules come from backend code, not the contract** (the contract only has `maxItems: 20`):
+  trimmed + lowercased, 1 to 50 characters, `[a-z0-9][a-z0-9 -]*`. Mirrored in `schema.ts` and tested. Logged as
+  `docs/BACKEND_REQUESTS.md` #2 (together with the PATCH 404 missing from the contract). The client also refuses
+  duplicates and lowercases items as they are added, so chips show what the server will store.
+- **Enum values:** TypeScript types only exist at compile time, so the runtime lists are derived from the label maps
+  (typed `Record<Goal, ...>` etc. from `schema.d.ts`, which forces them to be complete) and a test compares them
+  with `api/openapi.json`.
+- **Time zone** is shown read-only on the reminders step ("Times follow this phone's time zone, ..."); there is no
+  picker. Falls back to "UTC" if the runtime cannot tell. A server 422 for it shows under that line.
+- **Reminder picker:** Android opens the system time dialog; iOS opens an inline spinner under the time row. Needs a
+  check on both platforms on a device. With reminders off the time row is dimmed and disabled, but its value is
+  still sent.
+- **New copy** (please review): step questions and subtitles in `wizard.ts`, choice descriptions in `labels.ts`,
+  equipment suggestions (dumbbells, resistance bands, yoga mat, pull-up bar, kettlebell), "Finish setup".
+- **Equipment add button** sits under the field (soft, small) rather than beside it, so it stays aligned at 130% font
+  size and when an error message shows under the field. Chips use the existing `Chip` with a leading X / + icon
+  (the primitive has no trailing icon slot).
+- **Choice cards** are a new onboarding-only component (surface card, `accentSoft` when selected, accent marker with
+  a tick); the doc allows "chip or card choices". Selecting gives a selection haptic.
+- **Steps fade in** (250 ms, Reanimated `FadeIn`, reduce motion respected). No slide transition between steps.
+- **Dev Log out** sits in the wizard's top bar (development builds only), as on the old placeholder.
+- No OS notification permission is requested here; that stays with push (M8).
+- The `unslop` skill was applied as direction (calm and plain copy, one primary action per step, the selected
+  choice card as the one rich element, the progress dots as the signature); `docs/DESIGN.md` stayed binding for
+  every visual value.
+
 ### Milestone status
 
 | Milestone | Status |
@@ -480,7 +540,7 @@ docs/
 | M1 Foundation | Done |
 | M1b Design system | Done (visual review of the gallery on device pending) |
 | M2 Auth | Done (manual device checks pending: signup, login, restart, expired token) |
-| M3 | Not started |
+| M3 Onboarding | Done (manual device checks pending: both pickers, 422 display, Android back, offline save) |
 | M4 | Not started |
 | M5 | Not started |
 | M6 | Not started |

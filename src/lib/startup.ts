@@ -87,7 +87,18 @@ export async function runStartup(deps: StartupDeps, options: StartupOptions): Pr
     return { route: 'error', error: apiError };
   }
 
-  // 5. Is there a plan for today?
+  // 5 and 6.
+  return continueToTabs(deps);
+}
+
+/**
+ * Steps 5 and 6 on their own: is there a plan for today, then start the
+ * background tasks. Also used right after onboarding is saved, so finishing
+ * the wizard continues the gate instead of re-running it from the top.
+ */
+export async function continueToTabs(
+  deps: Pick<StartupDeps, 'readToday' | 'runBackgroundTasks'>,
+): Promise<Extract<StartupDecision, { route: 'tabs' } | { route: 'auth' }>> {
   let hasPlan: boolean | null;
   try {
     await deps.readToday();
@@ -98,7 +109,6 @@ export async function runStartup(deps: StartupDeps, options: StartupOptions): Pr
     hasPlan = apiError.action === 'generatePlan' ? false : null;
   }
 
-  // 6. Background work, not awaited.
   deps.runBackgroundTasks?.();
   return { route: 'tabs', hasPlan };
 }

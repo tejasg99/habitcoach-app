@@ -23,3 +23,25 @@ route decorators, the same way `login` and `generate_weekly_plan` already do.
 
 **Workaround.** None needed: the frontend maps errors by HTTP status in one place (`src/api/errors.ts`), not by the
 generated error types.
+
+## 2. Profile validation rules missing from `openapi.json` (found in Milestone 3)
+
+**What.** `ProfileIn` / `ProfileUpdate` in the contract only say `equipment` is a string array with `maxItems: 20`
+and `timezone` is a string. The real rules live in `backend/app/schemas/profile.py` (`_clean_equipment`,
+`_validate_timezone`) and are not visible in the contract:
+
+- each equipment item is trimmed and lowercased, blank items are dropped, then it must be at most 50 characters
+  and match `[a-z0-9][a-z0-9 \-]*`
+- `timezone` must be a real IANA zone name
+- `PATCH /onboarding/me` lists 200 and 422 but not its 404 ("no profile yet")
+
+**Why it matters.** The brief asks the client to validate equipment "to match the server". Without the rules in
+the contract, the frontend had to copy them by reading backend code, and the copy can silently drift.
+
+**Suggested change.** Declare the item type as
+`Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, max_length=50, pattern=r"^[a-z0-9][a-z0-9 \-]*$")]`
+(or add `json_schema_extra`) so `items` carries `maxLength` and `pattern` in the OpenAPI output, and add a short
+`description` to `timezone` ("IANA time zone name"). Add `404` to the PATCH route's `responses`.
+
+**Workaround.** The rules are mirrored by hand in `src/features/onboarding/schema.ts` (`equipmentItemSchema`) and
+covered by tests. Server 422 messages are still shown next to the field if the two ever disagree.

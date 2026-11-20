@@ -21,7 +21,7 @@ import { useSyncExternalStore } from 'react';
 import { apiClient } from '@/api/client';
 import { unwrap, type ApiError } from '@/api/errors';
 import { onSessionExpired } from '@/api/events';
-import { runStartup, type StartupDeps } from '@/lib/startup';
+import { continueToTabs, runStartup, type StartupDeps } from '@/lib/startup';
 import { clearTokens, hasStoredTokens } from '@/lib/storage';
 
 export type SessionPhase = 'booting' | 'checking' | 'error' | 'signedOut' | 'onboarding' | 'ready';
@@ -107,6 +107,23 @@ export function launchSession(): void {
 export function sessionSignedIn(): Promise<void> {
   setState({ phase: 'checking', hasPlan: null, error: null });
   return runGate(false);
+}
+
+/**
+ * Onboarding was just saved (PUT /onboarding/me succeeded): continue the gate
+ * from the plan check instead of starting over. The user stays on the
+ * onboarding screen (its button shows a spinner) until this resolves, then the
+ * phase flips to 'ready' and the router opens the tabs.
+ */
+export async function onboardingCompleted(): Promise<void> {
+  const id = ++runId;
+  const decision = await continueToTabs(startupDeps);
+  if (id !== runId) return;
+  setState(
+    decision.route === 'tabs'
+      ? { phase: 'ready', hasPlan: decision.hasPlan, error: null }
+      : { phase: 'signedOut', hasPlan: null, error: null },
+  );
 }
 
 /** Retry from the gate's error screen. */
