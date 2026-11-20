@@ -14,8 +14,11 @@
  *    signed-in user can never land on an auth screen and a signed-out user
  *    can never land on the tabs.
  *  - The "Waking up the server..." toast floats above every screen.
+ *  - TanStack Query's provider (src/lib/queryClient.ts) wraps everything, so
+ *    any screen can read cached API data.
  */
 
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -23,6 +26,7 @@ import { useEffect } from 'react';
 import { WakingToast } from '@/components/layout/WakingToast';
 import { phaseHref, routeGuards } from '@/features/auth/routeGuards';
 import { launchSession, useSession } from '@/features/auth/session';
+import { queryClient } from '@/lib/queryClient';
 import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
 
 // Imported for its side effect: the env module validates EXPO_PUBLIC_API_URL
@@ -36,9 +40,11 @@ void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootNavigator />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <RootNavigator />
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

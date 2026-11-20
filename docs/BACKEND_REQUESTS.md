@@ -45,3 +45,18 @@ the contract, the frontend had to copy them by reading backend code, and the cop
 
 **Workaround.** The rules are mirrored by hand in `src/features/onboarding/schema.ts` (`equipmentItemSchema`) and
 covered by tests. Server 422 messages are still shown next to the field if the two ever disagree.
+
+## 3. The two 409s of `POST /plan/generate` differ only in their message (found in Milestone 4)
+
+**What.** `generate_weekly_plan` returns 409 for two different reasons (`backend/app/api/routes/plan.py`):
+"Complete onboarding before generating a plan" and "A plan generation just finished; try again". The response
+has no machine-readable field to tell them apart.
+
+**Why it matters.** The client must route to onboarding for the first and offer a retry for the second. Today it
+matches the word "onboarding" in `detail`, so rewording the message would silently break the routing.
+
+**Suggested change.** Add a stable code, e.g. `{"detail": "...", "code": "onboarding_incomplete"}` /
+`"generation_in_progress"` (and declare it in `ErrorDetail`), or use a different status for one of them.
+
+**Workaround.** `mapApiError` in `src/api/errors.ts` checks `/onboarding/i` on `detail`; covered by
+`src/__tests__/plan-generate.test.ts` with the backend's current messages.

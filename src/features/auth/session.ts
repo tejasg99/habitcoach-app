@@ -21,6 +21,8 @@ import { useSyncExternalStore } from 'react';
 import { apiClient } from '@/api/client';
 import { unwrap, type ApiError } from '@/api/errors';
 import { onSessionExpired } from '@/api/events';
+import { fetchTodayPlan, planKeys } from '@/features/plan/queries';
+import { queryClient } from '@/lib/queryClient';
 import { continueToTabs, runStartup, type StartupDeps } from '@/lib/startup';
 import { clearTokens, hasStoredTokens } from '@/lib/storage';
 
@@ -57,6 +59,9 @@ function subscribe(listener: () => void) {
   };
 }
 
+/** Listen for phase changes outside React (e.g. the plan generator resets on sign out). */
+export const subscribeSession = subscribe;
+
 export function getSession(): SessionState {
   return state;
 }
@@ -71,7 +76,9 @@ const startupDeps: StartupDeps = {
   hasTokens: hasStoredTokens,
   readMe: () => unwrap('read_me', apiClient.GET('/users/me')),
   readProfile: () => unwrap('read_my_profile', apiClient.GET('/onboarding/me')),
-  readToday: () => unwrap('get_today_plan', apiClient.GET('/plan/today')),
+  // Through the query cache, so the Today and Plan tabs reuse this answer
+  // instead of asking again right after the gate.
+  readToday: () => queryClient.fetchQuery({ queryKey: planKeys.today, queryFn: fetchTodayPlan, staleTime: 0 }),
   onNetworkCheck: () => setState({ phase: 'checking', hasPlan: null, error: null }),
   runBackgroundTasks: () => {
     // Push token registration (Milestone 8) and the timezone check
@@ -134,6 +141,20 @@ export async function onboardingCompleted(): Promise<void> {
   );
 }
 
+/**
+ * POST /plan/generate answered 409 "complete onboarding first": the profile is
+ * missing or incomplete on the server, so open the onboarding flow.
+ */
+export function sessionNeedsOnboarding(): void {
+  runId += 1;
+  setState({ phase: 'onboarding', hasPlan: null, error: null });
+}
+
+/** A plan was generated: keep the gate's `hasPlan` flag in step with the cache. */
+export function planBecameAvailable(): void {
+  if (state.phase === 'ready' && state.hasPlan !== true) setState({ ...state, hasPlan: true });
+}
+
 /** Retry from the gate's error screen. */
 export function retrySession(): Promise<void> {
   setState({ phase: 'checking', hasPlan: null, error: null });
@@ -147,11 +168,13 @@ export function retrySession(): Promise<void> {
 export async function signOut(): Promise<void> {
   runId += 1; // cancel any gate run still in flight
   await clearTokens();
+  queryClient.clear(); // the next account must never see this one's cached data
   setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' });
 }
 
 // The API client gave up on refreshing: tokens are already cleared.
 onSessionExpired(() => {
   runId += 1;
+  queryClient.clear();
   setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' });
 });

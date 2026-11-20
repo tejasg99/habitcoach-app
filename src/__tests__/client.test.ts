@@ -312,4 +312,27 @@ describe('transport timeouts and the waking signal', () => {
     await jest.advanceTimersByTimeAsync(30_001);
     await assertion;
   });
+
+  it('gives POST /plan/generate 120 s and never flags it as "waking"', async () => {
+    jest.useFakeTimers();
+    const client = createApiClient({
+      baseUrl: BASE,
+      fetch: hangingFetch as typeof globalThis.fetch,
+      tokens: memoryTokens(),
+      onSessionExpired: jest.fn(),
+    });
+    const pending = unwrap('generate_weekly_plan', client.POST('/plan/generate'));
+    const assertion = expect(pending).rejects.toMatchObject({ kind: 'timeout' });
+
+    await jest.advanceTimersByTimeAsync(100_000); // past the 90 s cold timeout: still running
+    expect(isServerWaking()).toBe(false);
+    await jest.advanceTimersByTimeAsync(19_000); // 119 s
+    let settled = false;
+    void pending.catch(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await jest.advanceTimersByTimeAsync(1_001); // 120 s: timed out
+    await assertion;
+  });
 });

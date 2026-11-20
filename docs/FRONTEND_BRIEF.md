@@ -422,6 +422,48 @@ for 5xx); pressing Finish setup again retries. A slow cold start shows the globa
 keeps its spinner. On success `onboardingCompleted()` runs the plan check and flips the phase to `ready`; the
 button keeps its spinner until the tabs open.
 
+### Folder structure added in Milestone 4 (plan)
+
+```
+src/lib/queryClient.ts        the TanStack Query client (retry off, staleTime 30 s, no focus polling)
+src/hooks/useRefetchOnFocus.ts refetch a screen's queries when it regains focus (skips the first focus)
+src/api/transport.ts          + long requests: POST /plan/generate gets 120 s and no "waking" signal
+src/features/plan/
+  queries.ts          planKeys (['plan','today'], ['plan','week']), fetch/use hooks, isNoPlan(), PlanItem types
+  generate.ts         THE generation flow, pure: describeGenerateFailure() (error table), canStart(),
+                      secondsUntilRetry(), generatingCopy(), createPlanGenerator() (state machine + controller)
+  generator.ts        the app's single planGenerator: real API call, cache updates, haptic, session hooks;
+                      usePlanGenerator()
+  useGenerateFlow.ts  React glue: 1 s tick while running/waiting, button label/disabled, dismiss on blur
+  week.ts             itemsForDay(), groupByType(), dayGroups(), GROUP_LABELS, resolveSelectedDay()
+  components/         GeneratePlanEmptyState, GenerationStatus (progress card / failure notice), DayChips,
+                      DayPlan (groups + item rows), RegenerateSheet (confirmation), WellnessNote
+src/features/auth/session.ts  + sessionNeedsOnboarding(), planBecameAvailable(), subscribeSession;
+                      the gate's /plan/today goes through the query cache; cache cleared on logout/expiry
+src/app/_layout.tsx   + QueryClientProvider
+src/app/(tabs)/plan.tsx       the Week view (replaces the placeholder)
+src/app/(tabs)/index.tsx      Today: real /plan/today query; 404 -> GeneratePlanEmptyState (checklist is M5)
+src/__tests__/        plan-generate, plan-week (+ 120 s generate timeout in client.test.ts)
+```
+
+How it fits:
+
+- **One generator for the app.** `planGenerator` is a module store (like the session store), so Today and Plan
+  show the same run and two generations can never overlap. States: `idle | running | failed`. `start()` is
+  ignored while running and while a retry has to wait. Nothing ever calls `start()` except a button press.
+- **Status handling** (`describeGenerateFailure`): 201 -> the returned plan is written into the week cache,
+  Today and `['progress']` are invalidated, success haptic. 409 onboarding -> `sessionNeedsOnboarding()`
+  (the root layout opens onboarding). 409 "just finished" -> retry allowed after 5 s, only once; a second 409
+  offers no retry. 429 -> "try again tomorrow", no retry. 502 -> retry now + Copy debug info. 503 -> retry
+  after `Retry-After` seconds (now if missing); the button counts down ("Try again in 24 s"). Timeout and
+  network -> retry now. After a 409 "just finished", a timeout or a network error the plan queries are
+  refetched, because the server may have created the plan anyway; if it did, the plan replaces the empty state.
+- **Failures are cleared when the screen loses focus**, so returning to the tab starts clean (this is also how a
+  "no retry" state ends).
+- **Today's highlight** comes from `GET /plan/today`'s `weekday` (server-computed in the profile's time
+  zone, 0 = Monday, checked against `backend/app/services/plans.py`). The client never works out dates. If
+  /plan/today fails, nothing is highlighted and the week opens on Monday.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -455,6 +497,9 @@ docs/
 - **M3: no new dependencies.** `@react-native-community/datetimepicker` (already installed, config plugin already
   in `app.json`), `react-hook-form`, `zod`, `@hookform/resolvers`, `expo-haptics`, Reanimated. TanStack Query is
   still not wired (onboarding is a single mutation; Plan and Today in M4/M5 need it).
+- **M4: no new dependencies.** TanStack Query (`@tanstack/react-query`, already installed) is now wired with a
+  `QueryClientProvider` in the root layout. `expo-haptics`, `lucide-react-native` and RN's `Modal` (for
+  the bottom sheet) cover the rest.
 
 ### Deviations from the brief
 
@@ -542,6 +587,39 @@ docs/
   choice card as the one rich element, the progress dots as the signature); `docs/DESIGN.md` stayed binding for
   every visual value.
 
+### Deviations and additions in Milestone 4
+
+- **Groups follow the coach's order.** Inside a day, items are sorted by `position`, then grouped by `type`
+  with groups in the order of their first item (a day starting with a meal shows Meals first), rather than a fixed
+  Workouts / Meals / Habits order. One function in `week.ts` changes it if you prefer the fixed order.
+- **Plan details are shown inline, not in a sheet** (design doc 7 says "Plan details open in a sheet"): each row
+  already shows the full description and target, so a sheet would repeat it. The sheet pattern is used for the
+  regenerate confirmation instead.
+- **Day chips are seven equal pills in one row**, not a horizontally scrolling strip, so the whole week is visible.
+  Today gets a 4 px accent dot under its chip and a "Today" label chip next to the day name (screen readers hear
+  "Monday, today").
+- **"Make a new plan"** is a secondary button at the end of the day, not primary (it is not the screen's main
+  action). After a failed run, "Try again" retries without asking again (the person already confirmed and the old
+  plan is still in place).
+- **Progress state copy changes with elapsed time** ("Reading your answers" -> "Planning 7 days" -> "Nearly there")
+  and the bar is a rough estimate that never reaches the end; the API reports no real progress. The global
+  "Waking up the server..." toast is suppressed for `/plan/generate` (its long wait is expected), so a very cold
+  server plus generation could still hit the 120 s limit; the timeout copy then says the plan may still arrive and
+  the plan queries are refetched.
+- **429 and a second 409** disable the button until the person leaves and returns to the tab (the failure is
+  dismissed on blur). There is no "remaining generations" display, as the brief says.
+- **Two 409s are told apart by the `detail` text** ("onboarding"), as in M2. Logged as
+  `docs/BACKEND_REQUESTS.md` #3.
+- **New copy** (please review): empty state ("No plan yet", "Your coach builds 7 days of workouts, meals and habits
+  from your answers. It takes about a minute."), progress stages, the regenerate sheet ("Make a new plan?" ... "Your
+  progress and streak stay, but anything you checked off today won't carry over to the new plan."), the 409 and
+  timeout messages in `GENERATE_COPY`.
+- **Today tab** now shows the generate flow on 404 and a retry notice on other errors; the checklist is still the
+  M5 placeholder. `session.hasPlan` is kept (set true after a generation) but screens read the query cache.
+- The `unslop` skill was applied as direction: the selected day and its rows are the content, chrome stays
+  neutral, no gradient on the Plan tab, no sparkle icon for "AI" (a calendar-plus icon instead), the today dot as
+  the signature; `docs/DESIGN.md` stayed binding for every visual value.
+
 ### Milestone status
 
 | Milestone | Status |
@@ -550,7 +628,7 @@ docs/
 | M1b Design system | Done (visual review of the gallery on device pending) |
 | M2 Auth | Done (manual device checks pending: signup, login, restart, expired token) |
 | M3 Onboarding | Done (manual device checks pending: both pickers, 422 display, Android back, offline save) |
-| M4 | Not started |
+| M4 Plan | Done (manual device checks pending: real generation, each error status, sheet on iOS/Android, 130% text) |
 | M5 | Not started |
 | M6 | Not started |
 | M7 | Not started |

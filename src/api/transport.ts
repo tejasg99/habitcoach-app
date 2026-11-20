@@ -9,6 +9,10 @@
  *    and 30 s otherwise. A timeout throws `TimeoutError`.
  *  - Slow-request tracking. After ~5 s in flight a request is counted as slow
  *    (see status.ts), which shows the "Waking up the server..." message.
+ *  - Long requests. `POST /plan/generate` calls an LLM and can take about a
+ *    minute by design, so it gets its own 120 s timeout (brief: "Latency and
+ *    cold starts") and is NOT counted as slow: the plan screens show their own
+ *    progress state, and "Waking up the server..." would be the wrong message.
  *
  * It knows nothing about auth or JSON: it only moves bytes. Auth lives in the
  * middleware (authMiddleware.ts), error meaning in errors.ts.
@@ -37,12 +41,39 @@ export type TransportOptions = {
   slowAfterMs?: number;
   /** Clock (injected in tests). */
   now?: () => number;
+  /** Requests that are slow by design. Default: POST /plan/generate. */
+  longRequests?: readonly LongRequest[];
 };
+
+/** A request (method + path, no query) that gets `timeoutMs` and no "slow" tracking. */
+export type LongRequest = { method: string; path: string; timeoutMs: number };
 
 export const DEFAULT_COLD_TIMEOUT_MS = 90_000;
 export const DEFAULT_WARM_TIMEOUT_MS = 30_000;
 export const DEFAULT_COLD_AFTER_IDLE_MS = 10 * 60_000;
 export const DEFAULT_SLOW_AFTER_MS = 5_000;
+export const GENERATE_PLAN_TIMEOUT_MS = 120_000;
+
+export const DEFAULT_LONG_REQUESTS: readonly LongRequest[] = [
+  { method: 'POST', path: '/plan/generate', timeoutMs: GENERATE_PLAN_TIMEOUT_MS },
+];
+
+/**
+ * Finds the long-request rule for this call, if any. Compares the URL's path
+ * (query and fragment stripped) by suffix, so the base URL may carry a prefix.
+ * Plain string work instead of `new URL()`, which is incomplete in some
+ * React Native runtimes.
+ */
+export function findLongRequest(
+  rules: readonly LongRequest[],
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+): LongRequest | undefined {
+  const url = input instanceof Request ? input.url : String(input);
+  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  const path = url.split(/[?#]/)[0] ?? '';
+  return rules.find((rule) => rule.method === method && path.endsWith(rule.path));
+}
 
 export function createTransport(options: TransportOptions = {}): typeof globalThis.fetch {
   const {
@@ -52,6 +83,7 @@ export function createTransport(options: TransportOptions = {}): typeof globalTh
     coldAfterIdleMs = DEFAULT_COLD_AFTER_IDLE_MS,
     slowAfterMs = DEFAULT_SLOW_AFTER_MS,
     now = Date.now,
+    longRequests = DEFAULT_LONG_REQUESTS,
   } = options;
 
   // Time of the last response of any status. null = nothing received since launch.
@@ -59,7 +91,8 @@ export function createTransport(options: TransportOptions = {}): typeof globalTh
 
   return async function transport(input, init) {
     const cold = lastResponseAt === null || now() - lastResponseAt > coldAfterIdleMs;
-    const timeoutMs = cold ? coldTimeoutMs : warmTimeoutMs;
+    const long = findLongRequest(longRequests, input, init);
+    const timeoutMs = long ? long.timeoutMs : cold ? coldTimeoutMs : warmTimeoutMs;
 
     // Our own abort controller drives the timeout. If the caller passed a
     // signal of its own, aborting it still aborts the request.
@@ -74,11 +107,14 @@ export function createTransport(options: TransportOptions = {}): typeof globalTh
       controller.abort();
     }, timeoutMs);
 
+    // Long requests skip the "waking" signal (see the header comment).
     let markedSlow = false;
-    const slowTimer = setTimeout(() => {
-      markedSlow = true;
-      markRequestSlow();
-    }, slowAfterMs);
+    const slowTimer = long
+      ? undefined
+      : setTimeout(() => {
+          markedSlow = true;
+          markRequestSlow();
+        }, slowAfterMs);
 
     try {
       const response = await baseFetch(input, { ...init, signal: controller.signal });
