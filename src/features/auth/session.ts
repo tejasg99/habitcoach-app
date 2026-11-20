@@ -32,7 +32,15 @@ export type SessionState = {
   hasPlan: boolean | null;
   /** Set in the 'error' phase. */
   error: ApiError | null;
+  /**
+   * 'signedOut' only: which auth screen to open. 'welcome' on a fresh launch
+   * without tokens; 'login' after logout or an expired session (the person
+   * already has an account). Default: 'welcome'.
+   */
+  authEntry?: AuthEntry;
 };
+
+export type AuthEntry = 'welcome' | 'login';
 
 let state: SessionState = { phase: 'booting', hasPlan: null, error: null };
 const listeners = new Set<() => void>();
@@ -82,7 +90,7 @@ async function runGate(warmUp: boolean): Promise<void> {
 
   switch (decision.route) {
     case 'auth':
-      setState({ phase: 'signedOut', hasPlan: null, error: null });
+      setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: warmUp ? 'welcome' : 'login' });
       break;
     case 'onboarding':
       setState({ phase: 'onboarding', hasPlan: null, error: null });
@@ -122,7 +130,7 @@ export async function onboardingCompleted(): Promise<void> {
   setState(
     decision.route === 'tabs'
       ? { phase: 'ready', hasPlan: decision.hasPlan, error: null }
-      : { phase: 'signedOut', hasPlan: null, error: null },
+      : { phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' },
   );
 }
 
@@ -139,11 +147,11 @@ export function retrySession(): Promise<void> {
 export async function signOut(): Promise<void> {
   runId += 1; // cancel any gate run still in flight
   await clearTokens();
-  setState({ phase: 'signedOut', hasPlan: null, error: null });
+  setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' });
 }
 
 // The API client gave up on refreshing: tokens are already cleared.
 onSessionExpired(() => {
   runId += 1;
-  setState({ phase: 'signedOut', hasPlan: null, error: null });
+  setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' });
 });

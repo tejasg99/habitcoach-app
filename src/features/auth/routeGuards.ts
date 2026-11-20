@@ -14,7 +14,7 @@
  * race.
  */
 
-import type { SessionPhase } from './session';
+import type { AuthEntry, SessionPhase } from './session';
 
 export type RouteGuards = {
   starting: boolean;
@@ -35,3 +35,31 @@ export function routeGuards(phase: SessionPhase, isDev: boolean): RouteGuards {
     gallery: isDev && tabs,
   };
 }
+
+/**
+ * Where the router goes when the current screen's guard closes (the
+ * `redirectTo` of every `Stack.Protected` in the root layout): the one screen
+ * that is open in the new phase.
+ *
+ * Why this is needed: without `redirectTo`, Expo Router falls back to the
+ * first open route of the root navigator. For the signed-out phase that is the
+ * `(auth)` group, whose URL is "/" (groups are not part of URLs). But "/" is
+ * the Today tab, not an auth screen, so logout ended on "Unmatched route".
+ * An explicit, real URL per phase avoids the guess.
+ */
+export function phaseHref(phase: SessionPhase, authEntry: AuthEntry = 'welcome'): PhaseHref {
+  switch (phase) {
+    case 'booting':
+    case 'checking':
+    case 'error':
+      return '/starting';
+    case 'signedOut':
+      return authEntry === 'login' ? '/login' : '/welcome';
+    case 'onboarding':
+      return '/onboarding';
+    case 'ready':
+      return '/';
+  }
+}
+
+export type PhaseHref = '/starting' | '/login' | '/welcome' | '/onboarding' | '/';

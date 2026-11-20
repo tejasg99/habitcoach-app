@@ -386,6 +386,8 @@ How the pieces fit:
   open screen when the phase changes. Careful: when the current screen closes, Expo Router picks the first OPEN route
   by its own sort (groups first, then shorter names), not by JSX order. The dev gallery is therefore open only
   together with `(tabs)`; when it was open in every phase it beat `starting` and `onboarding` and swallowed them. The native splash stays up only while SecureStore is read (`booting`).
+  **Since M3** every `Stack.Protected` also gets `redirectTo={phaseHref(phase, authEntry)}`, so a closing guard
+  goes to a real URL instead of that fallback (see the M3 logout fix below).
 - **Startup gate:** at launch, `/health` fire-and-forget, then tokens? -> `/users/me` -> `/onboarding/me` (404 or
   `onboarding_complete: false` -> onboarding) -> `/plan/today` (404 -> `hasPlan: false`, Today shows the
   "Generate my plan" empty state). Network/5xx on the first two -> error screen; the user stays logged in.
@@ -528,6 +530,13 @@ docs/
   a tick); the doc allows "chip or card choices". Selecting gives a selection haptic.
 - **Steps fade in** (250 ms, Reanimated `FadeIn`, reduce motion respected). No slide transition between steps.
 - **Dev Log out** sits in the wizard's top bar (development builds only), as on the old placeholder.
+- **Logout fix (found on device in Expo Go):** logging out showed "Unmatched route" at `ai-habit-coach:///`. When a
+  guard closes, Expo Router 58 redirects to the root navigator's fallback: the first open route, here the `(auth)`
+  group, whose URL is "/" (groups are not part of URLs). "/" only exists as `(tabs)/index`, so nothing matched. Fix:
+  `phaseHref()` in `routeGuards.ts` gives each phase's real screen (`/starting`, `/welcome` or `/login`,
+  `/onboarding`, `/`), passed as `redirectTo` on every `Stack.Protected` in the root layout. The session state has a
+  new optional `authEntry`: `'welcome'` for a fresh launch without tokens, `'login'` after logout, an expired
+  session, or a gate re-run that ends signed out. Tested in `routeGuards.test.ts`.
 - No OS notification permission is requested here; that stays with push (M8).
 - The `unslop` skill was applied as direction (calm and plain copy, one primary action per step, the selected
   choice card as the one rich element, the progress dots as the signature); `docs/DESIGN.md` stayed binding for

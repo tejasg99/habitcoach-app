@@ -21,7 +21,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { WakingToast } from '@/components/layout/WakingToast';
-import { routeGuards } from '@/features/auth/routeGuards';
+import { phaseHref, routeGuards } from '@/features/auth/routeGuards';
 import { launchSession, useSession } from '@/features/auth/session';
 import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
 
@@ -46,7 +46,7 @@ export default function RootLayout() {
 function RootNavigator() {
   const fontsReady = useAppFonts();
   const { ready: themeReady, colors } = useTheme();
-  const { phase } = useSession();
+  const { phase, authEntry } = useSession();
 
   // Run the startup gate once at launch.
   useEffect(() => {
@@ -70,6 +70,10 @@ function RootNavigator() {
   // One route group open per phase; see routeGuards.ts for why the gallery
   // is tied to the tabs.
   const guards = routeGuards(phase, __DEV__);
+  // Where a closed guard sends the user: the open screen of the current phase
+  // (e.g. logout -> /login). Without it Expo Router guessed "/" for the auth
+  // group and showed "Unmatched route"; see phaseHref() in routeGuards.ts.
+  const redirectTo = phaseHref(phase, authEntry);
 
   return (
     <>
@@ -86,20 +90,20 @@ function RootNavigator() {
             the first unguarded route by ITS OWN sort order (groups first,
             then shorter names), not by the order below. That is why only
             one of these is ever open at a time. */}
-        <Stack.Protected guard={guards.starting}>
+        <Stack.Protected guard={guards.starting} redirectTo={redirectTo}>
           <Stack.Screen name="starting" options={{ animation: 'fade' }} />
         </Stack.Protected>
-        <Stack.Protected guard={guards.auth}>
+        <Stack.Protected guard={guards.auth} redirectTo={redirectTo}>
           <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
         </Stack.Protected>
-        <Stack.Protected guard={guards.onboarding}>
+        <Stack.Protected guard={guards.onboarding} redirectTo={redirectTo}>
           <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         </Stack.Protected>
-        <Stack.Protected guard={guards.tabs}>
+        <Stack.Protected guard={guards.tabs} redirectTo={redirectTo}>
           <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         </Stack.Protected>
         {/* Design gallery: development builds only, and only next to the tabs. */}
-        <Stack.Protected guard={guards.gallery}>
+        <Stack.Protected guard={guards.gallery} redirectTo={redirectTo}>
           <Stack.Screen name="gallery" />
         </Stack.Protected>
       </Stack>
