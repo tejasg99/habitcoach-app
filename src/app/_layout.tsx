@@ -1,16 +1,28 @@
 /**
  * src/app/_layout.tsx
  *
- * Root layout. Wraps the app in the ThemeProvider and keeps the native splash
- * screen visible until DM Sans AND the saved theme preference are loaded, so
- * the first frame the user sees already has the right fonts and colours.
- * The auth/startup gate and react-query arrive in Milestone 2.
+ * Root layout.
+ *
+ *  - ThemeProvider around everything; the native splash stays up until DM
+ *    Sans, the saved theme AND the stored-token check are ready, so the first
+ *    painted frame is already the right screen in the right colours.
+ *  - Starts the session gate once (src/features/auth/session.ts), which also
+ *    fires the /health warm-up ping.
+ *  - Guarded navigation: each session phase makes exactly ONE route group
+ *    available through `Stack.Protected` (src/features/auth/routeGuards.ts).
+ *    When the phase changes, Expo Router moves to the one open screen, so a
+ *    signed-in user can never land on an auth screen and a signed-out user
+ *    can never land on the tabs.
+ *  - The "Waking up the server..." toast floats above every screen.
  */
 
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
+import { WakingToast } from '@/components/layout/WakingToast';
+import { routeGuards } from '@/features/auth/routeGuards';
+import { launchSession, useSession } from '@/features/auth/session';
 import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
 
 // Imported for its side effect: the env module validates EXPO_PUBLIC_API_URL
@@ -25,26 +37,73 @@ void SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <ThemedStack />
+      <RootNavigator />
     </ThemeProvider>
   );
 }
 
-/** Lives inside ThemeProvider so it can read `ready` from the theme. */
-function ThemedStack() {
+/** Lives inside ThemeProvider so it can read `ready` and the colours from the theme. */
+function RootNavigator() {
   const fontsReady = useAppFonts();
-  const { ready: themeReady } = useTheme();
-  const appReady = fontsReady && themeReady;
+  const { ready: themeReady, colors } = useTheme();
+  const { phase } = useSession();
+
+  // Run the startup gate once at launch.
+  useEffect(() => {
+    launchSession();
+  }, []);
+
+  const uiReady = fontsReady && themeReady;
+  // 'booting' = still reading SecureStore (a few ms); keep the splash up so
+  // the user never sees a flash of the startup screen before the auth stack.
+  const splashCanHide = uiReady && phase !== 'booting';
 
   useEffect(() => {
-    if (appReady) {
+    if (splashCanHide) {
       void SplashScreen.hideAsync();
     }
-  }, [appReady]);
+  }, [splashCanHide]);
 
-  // Render nothing while loading: the native splash is still covering the screen.
-  if (!appReady) return null;
+  // Render nothing while fonts/theme load: the native splash covers the screen.
+  if (!uiReady) return null;
 
-  // No header: each screen will draw its own chrome per the design doc.
-  return <Stack screenOptions={{ headerShown: false }} />;
+  // One route group open per phase; see routeGuards.ts for why the gallery
+  // is tied to the tabs.
+  const guards = routeGuards(phase, __DEV__);
+
+  return (
+    <>
+      <Stack
+        screenOptions={{
+          // No header: each screen draws its own chrome per the design doc.
+          headerShown: false,
+          // Paint the theme background behind every screen, so no white
+          // frame flashes during transitions in dark mode.
+          contentStyle: { backgroundColor: colors.bg },
+        }}
+      >
+        {/* When the current screen becomes unavailable, the router opens
+            the first unguarded route by ITS OWN sort order (groups first,
+            then shorter names), not by the order below. That is why only
+            one of these is ever open at a time. */}
+        <Stack.Protected guard={guards.starting}>
+          <Stack.Screen name="starting" options={{ animation: 'fade' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={guards.auth}>
+          <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={guards.onboarding}>
+          <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={guards.tabs}>
+          <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        </Stack.Protected>
+        {/* Design gallery: development builds only, and only next to the tabs. */}
+        <Stack.Protected guard={guards.gallery}>
+          <Stack.Screen name="gallery" />
+        </Stack.Protected>
+      </Stack>
+      <WakingToast />
+    </>
+  );
 }

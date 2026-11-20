@@ -9,7 +9,7 @@ export { Card, type CardProps } from './Card';
 export { Chip, type ChipProps } from './Chip';
 export { HeroCard, type HeroCardProps } from './HeroCard';
 export { IconButton, type IconButtonProps } from './IconButton';
-export { Input, type InputProps } from './Input';
+export { Input, type InputHandle, type InputProps } from './Input';
 export { ProgressBar, type ProgressBarProps } from './ProgressBar';
 export { ProgressRing, type ProgressRingProps } from './ProgressRing';
 export { Screen, type ScreenProps } from './Screen';

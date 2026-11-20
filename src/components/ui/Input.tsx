@@ -14,20 +14,25 @@
  * muted fill is below 3:1 in light mode, and placeholders must stay readable.
  */
 
-import { useState } from 'react';
+import { useState, type ComponentRef, type Ref } from 'react';
 import { TextInput, View, type TextInputProps } from 'react-native';
 import { CircleAlert } from 'lucide-react-native';
 
 import { useTheme, useThemedStyles } from '@/theme';
 import { Text } from './Text';
 
+/** What a ref to an Input points at (the native text field), e.g. for `.focus()`. */
+export type InputHandle = ComponentRef<typeof TextInput>;
+
 export type InputProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
   label: string;
   /** Error message. When set, the field shows the error state. */
   error?: string;
+  /** Lets a form move focus to this field ("next" on the keyboard). React 19 passes refs as props. */
+  ref?: Ref<InputHandle>;
 };
 
-export function Input({ label, error, onFocus, onBlur, ...rest }: InputProps) {
+export function Input({ label, error, onFocus, onBlur, ref, ...rest }: InputProps) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
 
@@ -71,6 +76,7 @@ export function Input({ label, error, onFocus, onBlur, ...rest }: InputProps) {
       </Text>
       <TextInput
         {...rest}
+        ref={ref}
         accessibilityLabel={rest.accessibilityLabel ?? label}
         placeholderTextColor={colors.textSecondary}
         selectionColor={colors.accent}

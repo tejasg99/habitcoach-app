@@ -338,6 +338,59 @@ Usage: `const t = useTheme()` gives resolved tokens (`t.colors`, `t.spacing`, `t
 user's `modePreference` / `accent`, and setters. `useThemedStyles((t) => ({ ... }))` builds a memoised StyleSheet.
 The root layout holds the splash screen until fonts and the saved theme are loaded.
 
+### Folder structure added in Milestone 2 (auth)
+
+```
+src/api/
+  client.ts           createApiClient({ baseUrl, tokens, onSessionExpired, fetch? }) + the shared `apiClient`
+  transport.ts        fetch wrapper: 90 s timeout while the server is cold (no response yet, or none for 10 min),
+                      30 s once warm; TimeoutError; marks requests slow after 5 s
+  authMiddleware.ts   bearer token, X-Request-ID, single-flight refresh, retry once, session expiry
+  errors.ts           ApiError, mapApiError() (the brief's error table), unwrap(operation, call), ERROR_COPY
+  status.ts           stores: "server waking" (useServerWaking) and last failed request (getLastFailedRequest)
+  events.ts           session-expired signal (middleware -> session store)
+src/lib/startup.ts    runStartup(deps): the startup decision tree, pure and injectable
+src/lib/debugInfo.ts  formatDebugInfo(): the "Copy debug info" text (request id, method, path, status, time, app version)
+src/lib/storage.ts    + hasStoredTokens(), secureTokenStore
+src/features/auth/
+  api.ts              login() (form-encoded, email in `username`, saves tokens), signup(), formEncode()
+  session.ts          session phase store + useSession(), launchSession(), sessionSignedIn(), retrySession(), signOut()
+  routeGuards.ts      routeGuards(phase, isDev): which root route group is open in each phase
+  forms.ts            zod schemas for login/signup, splitFieldErrors() (422 -> form fields)
+  components/         AuthScaffold (login/signup frame), ChecklistPreview (welcome screen card)
+src/components/layout/ Notice (danger / neutral message card), EmptyState, TabPlaceholder (+ TAB_BAR_CLEARANCE),
+                      WakingToast ("Waking up the server..."), CopyDebugInfo (button, uses expo-clipboard)
+src/app/
+  _layout.tsx         ThemeProvider, splash, launches the gate, Stack.Protected per session phase, WakingToast
+  starting.tsx        gate screen: holding state while checking, error card with Try again / Log out / Copy debug info
+  (auth)/             _layout (Stack, initial route welcome), welcome, login, signup
+  onboarding.tsx      placeholder (Milestone 3) with Log out (dev builds only)
+  (tabs)/             _layout (Tabs + custom floating TabBar), index (Today), plan, progress, settings (placeholders;
+                      Settings holds Copy debug info and, in dev builds only, the temporary Log out and gallery link)
+src/__tests__/        client (middleware + transport), errors, startup, auth-api, routeGuards, debugInfo
+docs/BACKEND_REQUESTS.md
+```
+
+How the pieces fit:
+
+- **Calls:** `await unwrap('read_me', apiClient.GET('/users/me'))` returns the data or throws an `ApiError` with
+  `kind`, `action` (`retry | login | onboarding | generatePlan | refreshToday | none`), friendly `message`,
+  `fieldErrors` (422), `retryAfterSeconds`, `requestId`. Screens never interpret statuses themselves.
+- **Refresh:** a 401 from a protected path triggers one shared refresh (a second, middleware-free client calls
+  `/auth/refresh`), then the original request is retried once, straight through the transport. Public paths
+  (`/auth/*`, `/health*`) never refresh. Refresh 401/422 or a retried 401 -> tokens cleared, `onSessionExpired`.
+  Refresh 5xx/offline -> tokens kept, the caller gets the original 401. A late 401 for a request sent before
+  another call refreshed is retried with the stored newer token instead of refreshing again.
+- **Navigation:** session phases `booting | checking | error | signedOut | onboarding | ready`. The root layout
+  enables exactly one route group per phase with `Stack.Protected` (`routeGuards.ts`); the router moves to the one
+  open screen when the phase changes. Careful: when the current screen closes, Expo Router picks the first OPEN route
+  by its own sort (groups first, then shorter names), not by JSX order. The dev gallery is therefore open only
+  together with `(tabs)`; when it was open in every phase it beat `starting` and `onboarding` and swallowed them. The native splash stays up only while SecureStore is read (`booting`).
+- **Startup gate:** at launch, `/health` fire-and-forget, then tokens? -> `/users/me` -> `/onboarding/me` (404 or
+  `onboarding_complete: false` -> onboarding) -> `/plan/today` (404 -> `hasPlan: false`, Today shows the
+  "Generate my plan" empty state). Network/5xx on the first two -> error screen; the user stays logged in.
+  Re-runs (without the warm-up) after login. Background-task hook is empty until M7/M8.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -365,6 +418,9 @@ docs/
 - **Lint guard rails (M1b):** `eslint.config.js` forbids `borderWidth` (and per-side variants) anywhere in `src/`, and raw hex / `rgb()` / `hsl()` string literals outside `src/theme/` and `src/__tests__/`.
 - **Jest:** AsyncStorage is mocked globally in `jest.setup.js`.
 - **Removal candidates (installed, unused for now):** `@expo/ui`, `expo-glass-effect`, `expo-symbols`.
+- **M2: no new dependencies.** Uses the already-installed `openapi-fetch`, `expo-secure-store`, `react-hook-form`,
+  `zod`, `@hookform/resolvers`. TanStack Query is not wired yet (nothing needs caching until Milestone 3/4).
+- **M2 follow-up: `expo-clipboard`** (approved by the owner, installed with `npx expo install`) for "Copy debug info".
 
 ### Deviations from the brief
 
@@ -385,13 +441,45 @@ docs/
 - `/gallery` is cast to `Href` in `src/app/index.tsx` because the generated typed-routes file is stale until the dev server regenerates it.
 - The `unslop` skill was loaded, but `docs/DESIGN.md` is binding and fully specified, so it served as the direction; the skill's generic defaults (weights, tracking, no uppercase) did not override the doc.
 
+### Deviations and additions in Milestone 2
+
+- **Timeout rule:** "90 s for the first call" is implemented as "90 s while the server is cold": until any response
+  arrives after launch, and again after 10 minutes without one (the free tier sleeps when idle). Otherwise 30 s.
+  The 120 s timeout for `/plan/generate` is not added yet (Milestone 4).
+- **Waking toast placement:** top of the screen under the status bar, not 16 above the tab bar (design doc,
+  Toasts). It also shows on auth screens and the gate screen, where there is no tab bar, and at the bottom it
+  would cover the primary button with the keyboard open.
+- **Shared Notice / EmptyState / TabPlaceholder** live in `src/components/layout/` (built from the primitives and
+  tokens) rather than `ui/`, since they compose primitives.
+- **Input** now accepts a `ref` (React 19 ref-as-prop) and exports `InputHandle`, for "next field" focus.
+- **Welcome screen copy and preview card are new:** the design doc only describes Auth generally (soft bg, title1,
+  filled inputs, one primary button, no gradient). The welcome screen adds a static preview card of a day's
+  checklist built from the habit-row anatomy. Please review the copy.
+- **Signup logs in automatically** right after the account is created. If that login fails, the user lands on the
+  login screen with the email filled in and a note.
+- **Login 422 field mapping:** the API's `username` error is shown under Email.
+- **Requests carry an `X-Request-ID`** generated by the app (16 chars, a-z0-9). For failed requests the store
+  keeps the server's echoed id, method, path template (no ids or query) and status. "Copy debug info" copies it
+  (plus app version and platform) from the gate's error screen and the Settings placeholder.
+- **Logout** is the temporary client-side action on the Settings and onboarding placeholders, shown in
+  development builds only until Milestone 7. The gate's error screen keeps Log out in all builds, as the way out
+  of an account that cannot be loaded. Push unregister is added in Milestone 8.
+- **KeyboardAvoidingView uses `behavior="padding"` on Android too** (edge-to-edge no longer resizes the window).
+  Needs a check on a real Android device.
+- **Contract gaps** (409 on signup, 401 on refresh, 404 on plan reads not documented) recorded in
+  `docs/BACKEND_REQUESTS.md`.
+- **Typed routes:** `.expo/types/router.d.ts` (gitignored) is regenerated by `npx expo start`. If `npm run
+  typecheck` complains about `/login` etc. after pulling, start the dev server once.
+- The `unslop` skill was applied to copy and restraint (no exclamation marks, sentence case, one primary action,
+  one rich element per screen); `docs/DESIGN.md` stayed binding for every visual value.
+
 ### Milestone status
 
 | Milestone | Status |
 |---|---|
 | M1 Foundation | Done |
 | M1b Design system | Done (visual review of the gallery on device pending) |
-| M2 | Not started |
+| M2 Auth | Done (manual device checks pending: signup, login, restart, expired token) |
 | M3 | Not started |
 | M4 | Not started |
 | M5 | Not started |

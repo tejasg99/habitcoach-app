@@ -58,3 +58,16 @@ export async function clearTokens(): Promise<void> {
     SecureStore.deleteItemAsync(KEYS.refreshToken),
   ]);
 }
+
+/** True when a refresh token is stored (the startup gate's "has tokens?" check). */
+export async function hasStoredTokens(): Promise<boolean> {
+  return (await getRefreshToken()) !== null;
+}
+
+/** The helpers above as one object, in the shape the API client's auth middleware expects. */
+export const secureTokenStore = {
+  getAccessToken,
+  getRefreshToken,
+  saveTokens,
+  clearTokens,
+};
