@@ -290,7 +290,7 @@ This repository has its own CI (GitHub Actions): lint, type-check and tests on e
 ## Open questions for the development plan
 
 - Onboarding as one form or a step-by-step wizard (the design document may decide this). **Resolved: step-by-step wizard.**
-- Chart library choice. **Resolved: Victory Native XL (`victory-native` + `@shopify/react-native-skia`).**
+- Chart library choice. **Resolved: Victory Native XL (`victory-native` + `@shopify/react-native-skia`).** **Changed in M6: custom charts with `react-native-svg`** (Victory Native 43.x needs a Skia package Expo SDK 58 does not bundle).
 - Empty-state and error copy tone (the design document may decide this).
 
 ## Implementation notes (kept current by the agent)
@@ -499,6 +499,42 @@ How it fits:
 - **Refresh:** on focus (`useRefetchOnFocus`, Today + streak), pull to refresh (own `refreshing` flag so focus
   refetches show no spinner), and after each log/undo. No polling.
 
+### Folder structure added in Milestone 6 (Progress)
+
+```
+src/theme/tokens.ts               + dataViz tokens: chart tints (1 / 0.65 / 0.4 / 0.2) and heatmap steps (0.25..1), on `t.dataViz`
+src/lib/formatting.ts             + formatShortDate('2026-11-22') -> "22 Nov" (string parsing, no Date)
+src/features/progress/
+  range.ts            PROGRESS_RANGES [7, 30, 90], DEFAULT_PROGRESS_RANGE (7), isProgressRange, toProgressRange, labels
+  queries.ts          + progressKeys.range(days) (['progress','range',N]), fetchProgress, useProgress (keepPreviousData)
+  chartData.ts        THE response -> chart transform: toChartData() (status noPlan | planned | inProgress, bar ratios
+                      on one shared scale), axisLabels(), chartSummary() (screen reader text), heatLevel(),
+                      toHeatmapWeeks() (Monday-first calendar rows), heatmapSummary(), isProgressEmpty(), weekdayOf()
+  components/         RangeSelector (chips), ProgressHero (gradient), CompletionChart (react-native-svg bars),
+                      StreakHeatmap (View squares), ProgressSkeleton
+src/app/(tabs)/progress.tsx       the Progress screen (replaces the placeholder)
+src/__tests__/progress-chart.test.ts
+```
+
+How it fits:
+
+- **One query per range**, keyed `['progress','range',N]` under the shared `['progress']` prefix, so the existing
+  invalidation after log / undo / new plan refreshes every range. Switching range keeps the previous range on
+  screen, dimmed to 60%, until the new one arrives (`keepPreviousData` + `isPlaceholderData`); its labels keep
+  saying the range the data really belongs to.
+- **Today** is the entry whose `day` equals the server's `end_date` (the profile's local today, per
+  `backend/app/services/progress.py`; contract gap logged as `BACKEND_REQUESTS.md` #4). It is drawn "in
+  progress": done part at 65% tint plus the 4 px accent dot (the Plan tab's today mark) under its bar, and a dot in
+  its calendar square.
+- **Null days** (`completion_rate: null`) get no bar at all and a neutral calendar square. A planned day with
+  nothing done shows its pale planned bar, so "nothing planned" and "0%" never look the same in the chart.
+- **Heatmap levels** come from the server's rate: 0 or null -> `surfaceMuted`; then accent at 25 / 50 / 75 / 100%
+  for rates up to 0.25 / 0.5 / 0.75 / 1. Missed days are neutral, never red.
+- **Refresh:** on focus (`useRefetchOnFocus`), pull to refresh, and via invalidation. No polling.
+- **Accessibility:** the chart and the calendar are each one accessible image with a text summary built from
+  server values ("... 11 items completed, on 5 active days. 1 day had nothing planned. Today is in progress: 1 of
+  4 done."); axis labels and legends are hidden from screen readers because the summary already covers them.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -516,7 +552,11 @@ docs/
 ### Package decisions
 
 - **Types generator: `openapi-typesafe` stays.** `openapi-typescript` was tried first and `npm install` fails with ERESOLVE (it peers on `typescript@^5`, the project is on TypeScript 6). Not forced. `api:types` runs `openapi-typesafe`; its `paths` output type-checks against `openapi-fetch`'s `createClient<paths>` (see `src/api/client.ts` and `src/__tests__/client.test.ts`).
-- **Charts:** Victory Native XL (`victory-native` with `@shopify/react-native-skia`), installed in the progress milestone after a compatibility check.
+- **Charts:** ~~Victory Native XL~~ **custom charts with `react-native-svg`** (owner's decision in M6). Compatibility
+  check on 2026-11-22: `victory-native` 43.x moved from `@shopify/react-native-skia` to the renamed unscoped
+  `react-native-skia` (>= 2.15.5), while Expo SDK 58 bundles `@shopify/react-native-skia` 2.14.0, so 43.x would need a
+  development build. 42.0.1 (the last release for the scoped package) would fit, but it is the end of that line.
+  Nothing was installed.
 - **Tabs:** Expo Router `Tabs` with a custom floating `tabBar` (not `NativeTabs` / `@expo/ui`).
 - **TypeScript 6**, strict. Expo SDK 58, React Compiler and typed routes kept from the scaffold.
 - **Tests:** `jest-expo` + `@testing-library/react-native` v14 with its built-in matchers (registered in `jest.setup.js`). The deprecated `@testing-library/jest-native` was removed.
@@ -537,6 +577,7 @@ docs/
   the bottom sheet) cover the rest.
 - **M5: no new dependencies.** TanStack Query mutations, `expo-haptics`, Reanimated (`useReducedMotion`,
   `withSpring`, `withTiming`), `lucide-react-native`, RN `RefreshControl` and `AccessibilityInfo`.
+- **M6: no new dependencies.** Charts use the already-installed `react-native-svg`; the heatmap is plain Views.
 
 ### Deviations from the brief
 
@@ -690,6 +731,31 @@ docs/
   steady, a little warm; the hero ring is the one rich element, the flame streak line the signature; chrome stays
   neutral; copy has no exclamation marks or guilt); `docs/DESIGN.md` stayed binding for every visual value.
 
+### Deviations and additions in Milestone 6
+
+- **Chart library:** custom `react-native-svg` charts instead of Victory Native XL (see Package decisions).
+- **Default range is 7 days** (the design doc's "weekly chart"), not the API's default of 30. The request always
+  sends `days`.
+- **Hero shows total completed, current streak and best streak** (as the milestone asked), not a completion rate:
+  the API gives no range-wide rate, and averaging the daily rates would be computing progress on the client.
+- **Heatmap is a wall calendar** (rows = weeks, columns = Monday to Sunday, 28 px squares) rather than a
+  GitHub-style strip, so 7 days is one tidy row; 90 days is about 14 rows. "Nothing planned" and "planned, none
+  done" share the neutral square; the bar chart is where they differ.
+- **Empty state** only when there has never been any activity (`total_completed` 0 and no current or best
+  streak). Someone with past activity but none in the range sees the charts with planned bars only.
+- **New token group `dataViz`** in `tokens.ts` (opacities, not colours) so chart tints are named once. The design
+  doc could list it under 3.5.
+- **No y-axis or grid lines**; exact numbers are in the screen reader summary. Bars are 2 to 24 px wide depending on
+  the range.
+- **New copy** (please review): "Day by day" / "What was planned and what got done", legend "Planned", "Done",
+  "Today, in progress"; "Streak calendar" / "Darker days had more of the plan done", "Less ... More", "Today";
+  hero "items checked off in the last 7 days", "Current streak", "Best streak"; empty state "No activity yet" /
+  "Check off an item on Today and your days start filling in here." with "Go to Today".
+- The `unslop` skill was applied as direction (product: a daily coach checklist, this tab shows how steadily you
+  show up; character: calm, steady, a little warm; world: a paper wall calendar; the bar chart is the one rich
+  element, the heatmap smaller and different in kind; signature: the 4 px today dot shared with the Plan tab);
+  `docs/DESIGN.md` stayed binding for every visual value.
+
 ### Milestone status
 
 | Milestone | Status |
@@ -700,7 +766,7 @@ docs/
 | M3 Onboarding | Done (manual device checks pending: both pickers, 422 display, Android back, offline save) |
 | M4 Plan | Done (manual device checks pending: real generation, each error status, sheet on iOS/Android, 130% text) |
 | M5 Today | Done (tested on device in Expo Go by the owner) |
-| M6 | Not started |
+| M6 Progress | Done (manual device checks pending: light/dark with two accents, 7/30/90 ranges, 130% text, VoiceOver/TalkBack summary) |
 | M7 | Not started |
 | M8 | Not started |
 | M9 | Not started |

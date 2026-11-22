@@ -139,6 +139,20 @@ export function formatTodayDate(weekday: number, localDate: string): string {
   return `${day}, ${Number(match[2])} ${month}`;
 }
 
+/**
+ * A short date from an API date string ("YYYY-MM-DD"), read as text so the
+ * device time zone cannot shift it. Returns the input unchanged if malformed.
+ *
+ * @example
+ *   formatShortDate('2026-11-22') // "22 Nov"
+ */
+export function formatShortDate(isoDate: string): string {
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(isoDate);
+  const month = match ? MONTH_NAMES[Number(match[1]) - 1] : undefined;
+  if (!match || !month) return isoDate;
+  return `${Number(match[2])} ${month.slice(0, 3)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Plan item type labels
 // ---------------------------------------------------------------------------

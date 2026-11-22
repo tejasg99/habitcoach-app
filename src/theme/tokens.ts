@@ -421,6 +421,29 @@ export const motion = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Data visualization (design doc 3.5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Charts never get their own colours: they draw the accent (or `surfaceMuted`)
+ * at one of these opacities. Keeping the steps here means every chart uses the
+ * same few tints, so "planned", "completed" and "in progress" look the same
+ * wherever they appear, and a new accent recolours every chart for free.
+ *
+ * They are opacities (0..1), not colours, so they are the same in light and
+ * dark mode: the accent itself already changes per mode.
+ */
+export const dataViz = {
+  /** The four chart tints from the design doc: 100%, 65%, 40% and 20% of the accent. */
+  tint: { full: 1, strong: 0.65, medium: 0.4, soft: 0.2 },
+  /**
+   * Streak heatmap steps 1 to 4 (accent at 25 / 50 / 75 / 100%). Step 0, an
+   * empty or missed day, is plain `surfaceMuted`: neutral, never red.
+   */
+  heatmap: [0.25, 0.5, 0.75, 1],
+} as const;
+
+// ---------------------------------------------------------------------------
 // The full theme object
 // ---------------------------------------------------------------------------
 
@@ -434,6 +457,7 @@ export type Theme = {
   shadows: Record<ElevationLevel, ShadowStyle>;
   type: typeof typography;
   motion: typeof motion;
+  dataViz: typeof dataViz;
 };
 
 /** Build the complete theme for a resolved mode and an accent. */
@@ -448,5 +472,6 @@ export function buildTheme(mode: Mode, accent: AccentKey): Theme {
     shadows: shadows[mode],
     type: typography,
     motion,
+    dataViz,
   };
 }

@@ -60,3 +60,20 @@ matches the word "onboarding" in `detail`, so rewording the message would silent
 
 **Workaround.** `mapApiError` in `src/api/errors.ts` checks `/onboarding/i` on `detail`; covered by
 `src/__tests__/plan-generate.test.ts` with the backend's current messages.
+
+## 4. `GET /progress` does not say that `end_date` is today and `days` is oldest first (found in Milestone 6)
+
+**What.** `ProgressRead` has `start_date`, `end_date` and `days` with no descriptions. The backend
+(`backend/app/services/progress.py`, `get_progress`) sets `end_date` to the user's local today (profile time
+zone) and returns exactly `days` entries, one per date from `start_date` to `end_date`, oldest first. None of
+this is in the contract.
+
+**Why it matters.** The brief forbids working out "today" on the client, so the Progress tab marks the entry whose
+`day` equals `end_date` as "today, in progress" and lays the calendar out in the order received. If `end_date`
+ever meant something else (yesterday, a UTC date), the wrong day would be marked without any error.
+
+**Suggested change.** Add descriptions: `end_date` = "today in the profile's time zone (inclusive)", `days` = "one
+entry per date from start_date to end_date, oldest first". Optionally add `is_today: bool` to `DayProgressRead`.
+
+**Workaround.** `toChartData` in `src/features/progress/chartData.ts` treats `day === end_date` as today; covered
+by `src/__tests__/progress-chart.test.ts`.
