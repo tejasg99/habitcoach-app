@@ -7,6 +7,7 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 export { Card, type CardProps } from './Card';
 export { Chip, type ChipProps } from './Chip';
+export { HabitRow, type HabitRowProps } from './HabitRow';
 export { HeroCard, type HeroCardProps } from './HeroCard';
 export { IconButton, type IconButtonProps } from './IconButton';
 export { Input, type InputHandle, type InputProps } from './Input';

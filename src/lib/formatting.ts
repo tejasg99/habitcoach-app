@@ -107,6 +107,38 @@ export function dayNameShort(dayOfWeek: number): string {
   return name;
 }
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+/**
+ * Today's date line from GET /plan/today's server-computed fields: `weekday`
+ * (0 = Monday) and `local_date` ("YYYY-MM-DD" in the profile's time zone).
+ * The string is read as text, never through `Date`, so the device time zone
+ * cannot shift it. Falls back to the day name alone if the date is malformed.
+ *
+ * @example
+ *   formatTodayDate(6, '2026-11-22') // "Sunday, 22 November"
+ */
+export function formatTodayDate(weekday: number, localDate: string): string {
+  const day = dayName(weekday);
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(localDate);
+  const month = match ? MONTH_NAMES[Number(match[1]) - 1] : undefined;
+  if (!match || !month) return day;
+  return `${day}, ${Number(match[2])} ${month}`;
+}
+
 // ---------------------------------------------------------------------------
 // Plan item type labels
 // ---------------------------------------------------------------------------

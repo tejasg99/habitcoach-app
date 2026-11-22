@@ -464,6 +464,41 @@ How it fits:
   zone, 0 = Monday, checked against `backend/app/services/plans.py`). The client never works out dates. If
   /plan/today fails, nothing is highlighted and the week opens on Monday.
 
+### Folder structure added in Milestone 5 (Today)
+
+```
+src/features/progress/queries.ts  progressKeys (['progress'], ['progress','streak']), fetchStreak, useStreak, Streak
+src/features/today/
+  checklist.ts        todaySummary() (done/total/allDone from the items), todayGroups(), heroCopy()
+  streak.ts           streakState() ('none' | 'safe' | 'atRisk' from the server's fields), streakCopy()
+  logging.ts          THE log/undo flow: todayLogMutationOptions() (optimistic TanStack mutation), toggleTodayItem(),
+                      isTodayItemBusy(), canUndo(), liveLogApi (POST /logs, DELETE /logs/{log_id})
+  useTodayActions.ts  React glue: toggle, busyIds (useMutationState), notice for the toast, haptics
+  components/         TodayHero (gradient + ring), StreakBanner, TodayChecklist, TodaySkeleton, TodayToast
+src/components/ui/HabitRow.tsx    the design doc's core habit row (28 px check, spring + fade, checkbox a11y)
+src/components/ui/Screen.tsx      + optional `refreshControl` (pull to refresh)
+src/lib/formatting.ts             + formatTodayDate(weekday, local_date) -> "Sunday, 22 November" (string parsing, no Date)
+src/app/(tabs)/index.tsx          the Today screen (replaces the placeholder)
+src/__tests__/        today-logging, today-checklist (+ formatTodayDate in formatting.test.ts)
+```
+
+How it fits:
+
+- **One tap = one mutation, keyed `['today','log']`.** `onMutate` cancels any Today fetch and patches only that item
+  in the `['plan','today']` cache (log: `completed: true, log_id: null`; undo: `completed: false`), keeping the old
+  values. `onSuccess` writes the real `log_id`. `onError` restores the old values and shows the mapped message
+  (404/409 copy comes from `errors.ts`). `onSettled` invalidates Today and `['progress']` (progress and streak)
+  once no other log/undo is in flight, so a refetch never lands in the middle of another item's optimistic state.
+- **Busy items ignore taps.** "Busy" is read from TanStack's mutation cache (a mutation is marked pending
+  synchronously when it starts), so double taps in one frame send one request. This also keeps undo disabled until
+  the log has resolved, and stops a log racing an undo. Other rows stay tappable.
+- **Mutations run through `MutationObserver`** (the primitive `useMutation` wraps) inside `toggleTodayItem`, so the
+  tests drive the exact production logic with a real QueryClient and a fake API, without rendering.
+- **Haptics:** light when an item is checked, success when that check completes the day (decided from the
+  optimistic items). Haptics stay on with reduce motion; the row skips its spring and keeps only the fade.
+- **Refresh:** on focus (`useRefetchOnFocus`, Today + streak), pull to refresh (own `refreshing` flag so focus
+  refetches show no spinner), and after each log/undo. No polling.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -500,6 +535,8 @@ docs/
 - **M4: no new dependencies.** TanStack Query (`@tanstack/react-query`, already installed) is now wired with a
   `QueryClientProvider` in the root layout. `expo-haptics`, `lucide-react-native` and RN's `Modal` (for
   the bottom sheet) cover the rest.
+- **M5: no new dependencies.** TanStack Query mutations, `expo-haptics`, Reanimated (`useReducedMotion`,
+  `withSpring`, `withTiming`), `lucide-react-native`, RN `RefreshControl` and `AccessibilityInfo`.
 
 ### Deviations from the brief
 
@@ -620,6 +657,36 @@ docs/
   neutral, no gradient on the Plan tab, no sparkle icon for "AI" (a calendar-plus icon instead), the today dot as
   the signature; `docs/DESIGN.md` stayed binding for every visual value.
 
+### Deviations and additions in Milestone 5
+
+- **No value input for `target_metric` items.** The design doc's habit row is a single tap target with no place
+  for a number field, and nothing in the doc describes value entry (a sheet with an input would be new design).
+  Logs are sent as `{ plan_item_id }` only. Easy to add later through a sheet if the doc gets a pattern for it.
+- **Groups follow the coach's order** (same rule as the Plan tab, `groupByType`), not a fixed Workouts / Meals /
+  Habits order. The design doc's "grouped by time of day" is not possible: items carry no time.
+- **No "tomorrow" preview** (design doc 7, Today: "quiet tomorrow preview"). It would need the week plan plus
+  working out tomorrow's weekday on the client; left out until you decide (question in the M5 report).
+- **Streak banner is a separate compact card under the hero**, not part of the gradient. All three states share
+  one calm look (flame in `accentSoft`); at risk differs only in its words ("Check off one item today to keep it
+  going"). No warning colour: the doc reserves red for errors and asks for no guilt. If the streak request fails
+  the banner is simply left out; the checklist does not depend on it.
+- **Hero copy and ring:** "3 of 5 done" (title1, tabular) + one line ("Start with whichever feels easiest",
+  "2 left for today", "Everything for today is checked off"); the 72 px ring shows a tick when the day is done and
+  is otherwise empty. The date line under the title comes from the server's `weekday` + `local_date` text.
+- **Toast for log/undo failures** sits 16 above the tab bar as the doc specifies (the M2 waking toast stays at the
+  top). It fades without moving, ignores touches, is announced to screen readers and hides after 3 s.
+- **Row captions:** the target as the first caption line, the description cut to two lines as the second (full
+  text on the Plan tab). Press feedback is a slight dim rather than the button scale.
+- **The Today tab still reads `isNoPlan` first:** a 404 replaces even cached checklist data with the generate flow.
+  A failed refetch with data already shown keeps the cached day without an error card.
+- **`GROUP_ICONS` is now exported from `DayPlan.tsx`** so both tabs share the type icons.
+- **New copy** (please review): hero lines above, streak copy in `streak.ts` ("No streak yet" / "Check off any item
+  today to start one", "5-day streak" / "Today counts. Your best is 12 days." or "... This is your best run so
+  far."), "Nothing planned today" / "Enjoy the rest. Your plan picks up again tomorrow."
+- The `unslop` skill was applied as direction (product: a daily checklist from a personal coach; character: calm,
+  steady, a little warm; the hero ring is the one rich element, the flame streak line the signature; chrome stays
+  neutral; copy has no exclamation marks or guilt); `docs/DESIGN.md` stayed binding for every visual value.
+
 ### Milestone status
 
 | Milestone | Status |
@@ -629,7 +696,7 @@ docs/
 | M2 Auth | Done (manual device checks pending: signup, login, restart, expired token) |
 | M3 Onboarding | Done (manual device checks pending: both pickers, 422 display, Android back, offline save) |
 | M4 Plan | Done (manual device checks pending: real generation, each error status, sheet on iOS/Android, 130% text) |
-| M5 | Not started |
+| M5 Today | Done (manual device checks pending: real log/undo, offline revert, haptics, reduce motion, pull to refresh, light/dark with two accents, 130% text) |
 | M6 | Not started |
 | M7 | Not started |
 | M8 | Not started |

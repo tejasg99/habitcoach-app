@@ -20,7 +20,8 @@ import { useTheme, useThemedStyles } from '@/theme';
 import type { PlanItem, PlanItemType } from '../queries';
 import { GROUP_LABELS, type ItemGroup } from '../week';
 
-const GROUP_ICONS: Record<PlanItemType, LucideIcon> = {
+/** One icon per item type (also used by the Today checklist). */
+export const GROUP_ICONS: Record<PlanItemType, LucideIcon> = {
   workout: Dumbbell,
   meal: Utensils,
   habit: Repeat,

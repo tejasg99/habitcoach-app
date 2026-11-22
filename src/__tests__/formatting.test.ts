@@ -14,6 +14,7 @@ import {
   dayNameShort,
   formatCompletionRate,
   formatReminderTime,
+  formatTodayDate,
   itemTypeLabel,
   parseReminderTime,
   reminderTimeToApi,
@@ -182,5 +183,20 @@ describe('streakLabel', () => {
   it('uses plural for > 1 days', () => {
     expect(streakLabel(5)).toBe('5 days');
     expect(streakLabel(100)).toBe('100 days');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatTodayDate
+// ---------------------------------------------------------------------------
+describe('formatTodayDate', () => {
+  it('builds the line from the server weekday and local_date text', () => {
+    expect(formatTodayDate(6, '2026-11-22')).toBe('Sunday, 22 November');
+    expect(formatTodayDate(0, '2027-01-04')).toBe('Monday, 4 January');
+  });
+
+  it('falls back to the day name for a malformed date', () => {
+    expect(formatTodayDate(2, '2026-13-01')).toBe('Wednesday');
+    expect(formatTodayDate(2, 'garbage')).toBe('Wednesday');
   });
 });

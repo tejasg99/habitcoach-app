@@ -6,10 +6,11 @@
  *
  *   <Screen scroll>...</Screen>
  *   <Screen padded={false}>...</Screen>   // full-bleed content
+ *   <Screen scroll refreshControl={<RefreshControl ... />}>   // pull to refresh
  */
 
-import type { ReactNode } from 'react';
-import { ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
+import type { ReactElement, ReactNode } from 'react';
+import { ScrollView, View, type RefreshControlProps, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme, useThemedStyles } from '@/theme';
@@ -27,9 +28,18 @@ export type ScreenProps = {
   bottomSpace?: number;
   /** Extra style for the content container. */
   contentStyle?: StyleProp<ViewStyle>;
+  /** Pull-to-refresh control (a <RefreshControl>); only used with `scroll`. */
+  refreshControl?: ReactElement<RefreshControlProps>;
 };
 
-export function Screen({ children, scroll = false, padded = true, bottomSpace = 0, contentStyle }: ScreenProps) {
+export function Screen({
+  children,
+  scroll = false,
+  padded = true,
+  bottomSpace = 0,
+  contentStyle,
+  refreshControl,
+}: ScreenProps) {
   const insets = useSafeAreaInsets();
   const { layout } = useTheme();
 
@@ -56,6 +66,7 @@ export function Screen({ children, scroll = false, padded = true, bottomSpace = 
           contentContainerStyle={[padding, contentStyle]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={refreshControl}
         >
           {children}
         </ScrollView>
