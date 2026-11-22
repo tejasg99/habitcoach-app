@@ -153,6 +153,18 @@ export function formatShortDate(isoDate: string): string {
   return `${Number(match[2])} ${month.slice(0, 3)}`;
 }
 
+/**
+ * The month name of an API date string ("YYYY-MM-DD"), read as text.
+ * Returns null if malformed.
+ *
+ * @example
+ *   formatMonth('2026-12-01') // "December"
+ */
+export function formatMonth(isoDate: string): string | null {
+  const match = /^\d{4}-(\d{2})-\d{2}$/.exec(isoDate);
+  return (match && MONTH_NAMES[Number(match[1]) - 1]) || null;
+}
+
 // ---------------------------------------------------------------------------
 // Plan item type labels
 // ---------------------------------------------------------------------------

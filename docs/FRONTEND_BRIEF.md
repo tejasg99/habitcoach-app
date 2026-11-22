@@ -503,13 +503,14 @@ How it fits:
 
 ```
 src/theme/tokens.ts               + dataViz tokens: chart tints (1 / 0.65 / 0.4 / 0.2) and heatmap steps (0.25..1), on `t.dataViz`
-src/lib/formatting.ts             + formatShortDate('2026-11-22') -> "22 Nov" (string parsing, no Date)
+src/lib/formatting.ts             + formatShortDate('2026-11-22') -> "22 Nov", formatMonth() -> "November" (string parsing, no Date)
 src/features/progress/
   range.ts            PROGRESS_RANGES [7, 30, 90], DEFAULT_PROGRESS_RANGE (7), isProgressRange, toProgressRange, labels
   queries.ts          + progressKeys.range(days) (['progress','range',N]), fetchProgress, useProgress (keepPreviousData)
   chartData.ts        THE response -> chart transform: toChartData() (status noPlan | planned | inProgress, bar ratios
                       on one shared scale), axisLabels(), chartSummary() (screen reader text), heatLevel(),
-                      toHeatmapWeeks() (Monday-first calendar rows), heatmapSummary(), isProgressEmpty(), weekdayOf()
+                      toHeatmapWeeks() (Monday-first calendar rows), weekMonthLabel(), heatmapSummary(),
+                      isProgressEmpty(), weekdayOf()
   components/         RangeSelector (chips), ProgressHero (gradient), CompletionChart (react-native-svg bars),
                       StreakHeatmap (View squares), ProgressSkeleton
 src/app/(tabs)/progress.tsx       the Progress screen (replaces the placeholder)
@@ -739,8 +740,13 @@ docs/
 - **Hero shows total completed, current streak and best streak** (as the milestone asked), not a completion rate:
   the API gives no range-wide rate, and averaging the daily rates would be computing progress on the client.
 - **Heatmap is a wall calendar** (rows = weeks, columns = Monday to Sunday, 28 px squares) rather than a
-  GitHub-style strip, so 7 days is one tidy row; 90 days is about 14 rows. "Nothing planned" and "planned, none
-  done" share the neutral square; the bar chart is where they differ.
+  GitHub-style strip, so 7 days is one tidy row; 90 days is about 14 rows (owner: fine). "Nothing planned" and
+  "planned, none done" share the neutral square; the bar chart is where they differ.
+- **Month boundaries in the calendar** (owner's request after review): the 1st of each month shows a small "1" in
+  its square, and the week where a month starts gets the month name above it with 12 px of extra space, so each
+  month reads as its own block. The first row always names the starting month ("November", or "November –
+  December" when a month starts inside that row). Logic in `weekMonthLabel()` / `HeatCell.isMonthStart`, tested.
+- **Default range of 7 days confirmed by the owner.**
 - **Empty state** only when there has never been any activity (`total_completed` 0 and no current or best
   streak). Someone with past activity but none in the range sees the charts with planned bars only.
 - **New token group `dataViz`** in `tokens.ts` (opacities, not colours) so chart tints are named once. The design
@@ -766,7 +772,7 @@ docs/
 | M3 Onboarding | Done (manual device checks pending: both pickers, 422 display, Android back, offline save) |
 | M4 Plan | Done (manual device checks pending: real generation, each error status, sheet on iOS/Android, 130% text) |
 | M5 Today | Done (tested on device in Expo Go by the owner) |
-| M6 Progress | Done (manual device checks pending: light/dark with two accents, 7/30/90 ranges, 130% text, VoiceOver/TalkBack summary) |
+| M6 Progress | Done (tested on device by the owner; month markers in the calendar added afterwards, not yet seen on device) |
 | M7 | Not started |
 | M8 | Not started |
 | M9 | Not started |

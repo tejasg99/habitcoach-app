@@ -21,7 +21,7 @@
  * the device time zone cannot shift it.
  */
 
-import { dayNameShort, formatShortDate } from '@/lib/formatting';
+import { dayNameShort, formatMonth, formatShortDate } from '@/lib/formatting';
 
 import type { Progress, ProgressDay } from './queries';
 import { rangePhrase, type ProgressRange } from './range';
@@ -186,6 +186,8 @@ export type HeatCell = {
   level: HeatLevel;
   status: ChartDayStatus;
   isToday: boolean;
+  /** The 1st of a month: its square shows "1" so month boundaries are visible. */
+  isMonthStart: boolean;
 };
 
 /**
@@ -206,13 +208,41 @@ export function toHeatmapWeeks(chart: ChartData): (HeatCell | null)[][] {
   if (chart.days.length === 0) return [];
   const cells: (HeatCell | null)[] = Array.from({ length: chart.days[0]!.weekday }, () => null);
   for (const d of chart.days) {
-    cells.push({ day: d.day, level: heatLevel(d.rate), status: d.status, isToday: d.isToday });
+    cells.push({
+      day: d.day,
+      level: heatLevel(d.rate),
+      status: d.status,
+      isToday: d.isToday,
+      isMonthStart: d.day.endsWith('-01'),
+    });
   }
   while (cells.length % 7 !== 0) cells.push(null);
 
   const weeks: (HeatCell | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   return weeks;
+}
+
+/**
+ * The month name shown above a calendar row, or null for no label.
+ *  - A later row is labelled when it contains the 1st of a month, with the
+ *    month that starts there ("December").
+ *  - The first row always gets a label: the month the range starts in, or
+ *    both months when a new one starts later in that same row
+ *    ("November – December").
+ * Together with the "1" square this shows where one month ends and the next
+ * begins.
+ */
+export function weekMonthLabel(week: (HeatCell | null)[], isFirstRow: boolean): string | null {
+  const days = week.filter((c): c is HeatCell => c !== null);
+  const monthStart = days.find((c) => c.isMonthStart);
+  if (!isFirstRow) return monthStart ? formatMonth(monthStart.day) : null;
+
+  const first = days[0];
+  if (!first) return null;
+  const startMonth = formatMonth(first.day);
+  if (monthStart && monthStart !== first) return `${startMonth} – ${formatMonth(monthStart.day)}`;
+  return startMonth;
 }
 
 /** Screen reader text for the heatmap. */

@@ -13,6 +13,7 @@ import {
   toChartData,
   toHeatmapWeeks,
   weekdayOf,
+  weekMonthLabel,
 } from '@/features/progress/chartData';
 import { progressKeys, type Progress } from '@/features/progress/queries';
 import {
@@ -22,7 +23,7 @@ import {
   rangeLabel,
   toProgressRange,
 } from '@/features/progress/range';
-import { formatShortDate } from '@/lib/formatting';
+import { formatMonth, formatShortDate } from '@/lib/formatting';
 
 type Day = Progress['days'][number];
 
@@ -177,6 +178,33 @@ describe('heatmap', () => {
     expect(weeks[1]![1]).toMatchObject({ day: '2026-11-24', isToday: true });
   });
 
+  it('marks the 1st of each month and labels the rows where months start', () => {
+    // Thursday 26 November to Wednesday 9 December: December starts mid-row.
+    const dates = [
+      ...['26', '27', '28', '29', '30'].map((d) => `2026-11-${d}`),
+      ...['01', '02', '03', '04', '05', '06', '07', '08', '09'].map((d) => `2026-12-${d}`),
+    ];
+    const days = dates.map((d) => day(d, 2, 1, 0.5));
+    const weeks = toHeatmapWeeks(toChartData(week({ start_date: '2026-11-26', end_date: '2026-12-09', days })));
+    const cells = weeks.flat().filter((c) => c !== null);
+    expect(cells.filter((c) => c.isMonthStart).map((c) => c.day)).toEqual(['2026-12-01']);
+    // Row 1: Mon 23 Nov (blank) ... Sun 29 Nov -> November only.
+    // Row 2: Mon 30 Nov, Tue 1 Dec ... -> December starts here.
+    expect(weeks.map((w, i) => weekMonthLabel(w, i === 0))).toEqual(['November', 'December', null]);
+  });
+
+  it('first row names both months when one starts inside it, and the start month otherwise', () => {
+    const dates = ['2026-11-30', '2026-12-01', '2026-12-02'];
+    const weeks = toHeatmapWeeks(
+      toChartData(week({ start_date: '2026-11-30', end_date: '2026-12-02', days: dates.map((d) => day(d, 1, 1, 1)) })),
+    );
+    expect(weekMonthLabel(weeks[0]!, true)).toBe('November – December');
+
+    const starting = toHeatmapWeeks(toChartData(week({ start_date: '2026-12-01', days: [day('2026-12-01', 1, 1, 1)] })));
+    expect(weekMonthLabel(starting[0]!, true)).toBe('December');
+    expect(weekMonthLabel(toHeatmapWeeks(toChartData(week()))[0]!, true)).toBe('November');
+  });
+
   it('summary uses the server streak and active days', () => {
     expect(heatmapSummary(week(), 7)).toBe(
       'Streak calendar, the last 7 days. Active on 5 of 7 days. Current streak 3 days, best 9 days.',
@@ -225,5 +253,7 @@ describe('formatShortDate', () => {
     expect(formatShortDate('2026-11-22')).toBe('22 Nov');
     expect(formatShortDate('2026-01-05')).toBe('5 Jan');
     expect(formatShortDate('bad')).toBe('bad');
+    expect(formatMonth('2026-12-01')).toBe('December');
+    expect(formatMonth('2026-13-01')).toBeNull();
   });
 });

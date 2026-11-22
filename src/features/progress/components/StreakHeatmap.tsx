@@ -24,7 +24,14 @@ import { Card, Text } from '@/components/ui';
 import { dayNameShort } from '@/lib/formatting';
 import { useTheme, useThemedStyles } from '@/theme';
 
-import { heatmapSummary, toChartData, toHeatmapWeeks, type HeatCell, type HeatLevel } from '../chartData';
+import {
+  heatmapSummary,
+  toChartData,
+  toHeatmapWeeks,
+  weekMonthLabel,
+  type HeatCell,
+  type HeatLevel,
+} from '../chartData';
 import type { Progress } from '../queries';
 import type { ProgressRange } from '../range';
 
@@ -68,6 +75,12 @@ export function StreakHeatmap({ progress, range }: StreakHeatmapProps) {
     // level's step from `dataViz.heatmap`, so 25% reads as a light wash.
     // (Absolute + 0 on every side = stretch over the square, behind the dot.)
     tint: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: t.colors.accent },
+    // Month name above the week where a month starts, left-aligned with the
+    // grid, 4 above its row. Later months get 12 extra above the label, so
+    // each month reads as its own block (the end of one month and the start of
+    // the next are separated by that space).
+    monthLabel: { marginBottom: GAP },
+    monthLabelSpaced: { marginTop: t.spacing[12] },
     // Blank slots before the range starts / after today keep the grid shape.
     blank: { width: CELL, height: CELL },
     // Today's mark: a 4 px dot centred in the square.
@@ -114,10 +127,23 @@ export function StreakHeatmap({ progress, range }: StreakHeatmapProps) {
 
   const renderCell = (cell: HeatCell | null, index: number) => {
     if (!cell) return <View key={`blank-${index}`} style={styles.blank} />;
+    const onStrong = cell.level >= 3;
     const dot = cell.isToday ? (
-      <View style={[styles.todayDot, cell.level >= 3 ? styles.todayDotOnStrong : styles.todayDotOnLight]} />
-    ) : undefined;
-    return <View key={cell.day}>{renderSquare(cell.level, styles.cell, dot)}</View>;
+      <View style={[styles.todayDot, onStrong ? styles.todayDotOnStrong : styles.todayDotOnLight]} />
+    ) : null;
+    // The 1st of a month shows a small "1", so the month boundary is visible
+    // inside the grid too (with the today dot under it if both apply).
+    const marks = cell.isMonthStart ? (
+      <>
+        <Text variant="micro" color={onStrong ? 'onAccent' : 'textSecondary'} maxFontSizeMultiplier={1}>
+          1
+        </Text>
+        {dot}
+      </>
+    ) : (
+      dot
+    );
+    return <View key={cell.day}>{renderSquare(cell.level, styles.cell, marks)}</View>;
   };
 
   return (
@@ -139,11 +165,24 @@ export function StreakHeatmap({ progress, range }: StreakHeatmapProps) {
             </View>
           ))}
         </View>
-        {weeks.map((week) => (
-          <View key={week.find((c) => c)?.day} style={styles.row}>
-            {week.map(renderCell)}
-          </View>
-        ))}
+        {weeks.map((week, i) => {
+          const monthLabel = weekMonthLabel(week, i === 0);
+          return (
+            <View key={week.find((c) => c)?.day}>
+              {monthLabel ? (
+                <Text
+                  variant="caption"
+                  color="textSecondary"
+                  capScaling
+                  style={[styles.monthLabel, i > 0 && styles.monthLabelSpaced]}
+                >
+                  {monthLabel}
+                </Text>
+              ) : null}
+              <View style={styles.row}>{week.map(renderCell)}</View>
+            </View>
+          );
+        })}
       </View>
 
       <View style={styles.legend} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
