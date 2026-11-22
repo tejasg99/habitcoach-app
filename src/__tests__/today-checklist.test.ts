@@ -65,10 +65,10 @@ describe('todaySummary and heroCopy', () => {
 });
 
 describe('todayGroups', () => {
-  it('sorts by position and groups by type in order of first appearance', () => {
-    const groups = todayGroups([item(1, 'habit', 3), item(2, 'workout', 0), item(3, 'meal', 1), item(4, 'workout', 2)]);
+  it('sorts by position and groups by type in the fixed order', () => {
+    const groups = todayGroups([item(1, 'habit', 0), item(2, 'workout', 3), item(3, 'meal', 1), item(4, 'workout', 2)]);
     expect(groups.map((g) => [g.type, g.items.map((i) => i.id)])).toEqual([
-      ['workout', [2, 4]],
+      ['workout', [4, 2]],
       ['meal', [3]],
       ['habit', [1]],
     ]);

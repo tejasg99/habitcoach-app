@@ -1,6 +1,6 @@
 /**
  * Week view helpers: items of one day ordered by position, grouped by type
- * (groups in order of first appearance), and which day the tab shows.
+ * (groups in the fixed order workout, meal, habit), and which day the tab shows.
  */
 
 import type { PlanItem } from '@/features/plan/queries';
@@ -30,19 +30,24 @@ describe('itemsForDay', () => {
 });
 
 describe('groupByType', () => {
-  it('groups by type, groups in order of first appearance, items keep their order', () => {
+  it('groups by type in the fixed order workout, meal, habit; items keep their order', () => {
     const sorted = [
-      item(0, 0, 'meal', 'breakfast'),
-      item(0, 1, 'workout', 'run'),
-      item(0, 2, 'meal', 'lunch'),
-      item(0, 3, 'habit', 'water'),
+      item(0, 0, 'habit', 'water'),
+      item(0, 1, 'meal', 'breakfast'),
+      item(0, 2, 'workout', 'run'),
+      item(0, 3, 'meal', 'lunch'),
       item(0, 4, 'workout', 'stretch'),
     ];
     expect(groupByType(sorted).map((g) => [g.type, g.items.map((i) => i.title)])).toEqual([
-      ['meal', ['breakfast', 'lunch']],
       ['workout', ['run', 'stretch']],
+      ['meal', ['breakfast', 'lunch']],
       ['habit', ['water']],
     ]);
+  });
+
+  it('leaves out types the day does not have', () => {
+    const sorted = [item(0, 0, 'habit', 'water'), item(0, 1, 'meal', 'lunch')];
+    expect(groupByType(sorted).map((g) => g.type)).toEqual(['meal', 'habit']);
   });
 
   it('returns no groups for an empty day', () => {

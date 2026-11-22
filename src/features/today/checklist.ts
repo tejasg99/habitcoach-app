@@ -6,8 +6,8 @@
  *  - Counts come only from the items GET /plan/today returned (each has a
  *    server-set `completed`). No dates, no streak maths.
  *  - Items are sorted by `position` and grouped by type with the same rule as
- *    the Plan tab (groups in the coach's order of first appearance), so the two
- *    tabs always list a day the same way.
+ *    the Plan tab (fixed Workouts, Meals, Habits order), so the two tabs always
+ *    list a day the same way.
  */
 
 import type { TodayPlan } from '../plan/queries';

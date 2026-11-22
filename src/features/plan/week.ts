@@ -8,9 +8,8 @@
  *    date.weekday()). The client never works out which day is today: that
  *    comes from GET /plan/today's `weekday`.
  *  - Inside a day, items are sorted by `position`, then grouped by `type`.
- *    Groups appear in the order their first item appears, so the coach's
- *    ordering is kept at both levels (a day that starts with a meal shows
- *    Meals first).
+ *    Groups always come in a fixed order (Workouts, Meals, Habits); inside a
+ *    group the coach's `position` order is kept.
  */
 
 import type { PlanItem, PlanItemType } from './queries';
@@ -31,7 +30,14 @@ export function itemsForDay<T extends Pick<PlanItem, 'day_of_week' | 'position'>
     .map(({ item }) => item);
 }
 
-/** Groups already-sorted items by type, groups in order of first appearance. */
+/** The fixed order of the groups on both the Plan and Today tabs. */
+export const GROUP_ORDER: readonly PlanItemType[] = ['workout', 'meal', 'habit'];
+
+/**
+ * Groups already-sorted items by type, in GROUP_ORDER. Empty groups are left
+ * out, and items keep their order inside a group. An unknown future type would
+ * go after the known ones rather than disappear.
+ */
 export function groupByType<T extends Pick<PlanItem, 'type' | 'position'>>(sortedItems: readonly T[]): ItemGroup<T>[] {
   const groups: ItemGroup<T>[] = [];
   for (const item of sortedItems) {
@@ -39,7 +45,12 @@ export function groupByType<T extends Pick<PlanItem, 'type' | 'position'>>(sorte
     if (group) group.items.push(item);
     else groups.push({ type: item.type, items: [item] });
   }
-  return groups;
+  const rank = (type: PlanItemType) => {
+    const index = GROUP_ORDER.indexOf(type);
+    return index === -1 ? GROUP_ORDER.length : index;
+  };
+  // Array sort is stable, so unknown types keep their first-appearance order.
+  return groups.sort((a, b) => rank(a.type) - rank(b.type));
 }
 
 /** One day of the week, ready to render: sorted by position, grouped by type. */

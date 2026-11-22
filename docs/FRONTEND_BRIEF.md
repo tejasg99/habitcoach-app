@@ -629,6 +629,8 @@ docs/
 - **Groups follow the coach's order.** Inside a day, items are sorted by `position`, then grouped by `type`
   with groups in the order of their first item (a day starting with a meal shows Meals first), rather than a fixed
   Workouts / Meals / Habits order. One function in `week.ts` changes it if you prefer the fixed order.
+  **Changed in M5 (owner's decision):** groups now use the fixed order Workouts, Meals, Habits (`GROUP_ORDER` in
+  `week.ts`) on both tabs; `position` still orders items inside a group.
 - **Plan details are shown inline, not in a sheet** (design doc 7 says "Plan details open in a sheet"): each row
   already shows the full description and target, so a sheet would repeat it. The sheet pattern is used for the
   regenerate confirmation instead.
@@ -662,10 +664,11 @@ docs/
 - **No value input for `target_metric` items.** The design doc's habit row is a single tap target with no place
   for a number field, and nothing in the doc describes value entry (a sheet with an input would be new design).
   Logs are sent as `{ plan_item_id }` only. Easy to add later through a sheet if the doc gets a pattern for it.
-- **Groups follow the coach's order** (same rule as the Plan tab, `groupByType`), not a fixed Workouts / Meals /
-  Habits order. The design doc's "grouped by time of day" is not possible: items carry no time.
+- **Groups use a fixed order: Workouts, Meals, Habits** (owner's decision), shared with the Plan tab through
+  `groupByType` / `GROUP_ORDER` in `week.ts`; items keep their `position` order inside a group. The design doc's
+  "grouped by time of day" is not possible: items carry no time.
 - **No "tomorrow" preview** (design doc 7, Today: "quiet tomorrow preview"). It would need the week plan plus
-  working out tomorrow's weekday on the client; left out until you decide (question in the M5 report).
+  working out tomorrow's weekday on the client. Owner's decision: left out for now.
 - **Streak banner is a separate compact card under the hero**, not part of the gradient. All three states share
   one calm look (flame in `accentSoft`); at risk differs only in its words ("Check off one item today to keep it
   going"). No warning colour: the doc reserves red for errors and asks for no guilt. If the streak request fails
@@ -696,7 +699,7 @@ docs/
 | M2 Auth | Done (manual device checks pending: signup, login, restart, expired token) |
 | M3 Onboarding | Done (manual device checks pending: both pickers, 422 display, Android back, offline save) |
 | M4 Plan | Done (manual device checks pending: real generation, each error status, sheet on iOS/Android, 130% text) |
-| M5 Today | Done (manual device checks pending: real log/undo, offline revert, haptics, reduce motion, pull to refresh, light/dark with two accents, 130% text) |
+| M5 Today | Done (tested on device in Expo Go by the owner) |
 | M6 | Not started |
 | M7 | Not started |
 | M8 | Not started |

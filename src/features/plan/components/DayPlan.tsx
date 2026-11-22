@@ -2,7 +2,7 @@
  * src/features/plan/components/DayPlan.tsx
  *
  * One day of the plan: its items grouped by type (workouts, meals, habits),
- * each group in the order the coach listed it, each item as a row.
+ * groups in a fixed order, items in the order the coach listed them, each as a row.
  *
  * Rows follow the habit-row anatomy (design doc 6) minus the check circle:
  * the Plan tab is for reading the week, checking things off happens on Today.
