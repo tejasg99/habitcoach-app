@@ -1,23 +1,34 @@
 /**
  * src/app/(tabs)/settings.tsx
  *
- * Settings tab. PLACEHOLDER until Milestone 7, plus:
- *  - "Copy debug info" (all builds): the brief asks for it in Settings.
- *  - Development builds only:
- *    - "Log out": TEMPORARY client-side logout (deletes the stored tokens).
- *      Milestone 7 replaces it with the real account section, and Milestone 8
- *      adds "unregister the push token" before the tokens are deleted.
- *    - "Open design gallery".
+ * Settings tab (Milestone 7): grouped `surface` cards (design doc 7).
+ *
+ *   Appearance   mode and accent, stored on the device only
+ *   Reminders    switch, time, time zone (PATCH /onboarding/me, one field each)
+ *   Account      email, display name, log out, delete account
+ *   Support      version, platform, latest request id, Copy debug info
+ *   (dev builds) link to the design gallery
+ *
+ * Appearance, log out and support never wait for the server. Reminders and the
+ * account details show a skeleton while loading and a notice with Try again if
+ * they could not be loaded. Refreshes on focus; no polling.
  */
 
 import { type Href, useRouter } from 'expo-router';
-import { Settings } from 'lucide-react-native';
+import { useCallback } from 'react';
 import { View } from 'react-native';
 
+import { isApiError } from '@/api/errors';
 import { CopyDebugInfo } from '@/components/layout/CopyDebugInfo';
-import { TabPlaceholder } from '@/components/layout/TabPlaceholder';
-import { Button, Card, Text } from '@/components/ui';
-import { signOut } from '@/features/auth/session';
+import { Notice } from '@/components/layout/Notice';
+import { TAB_BAR_CLEARANCE } from '@/components/layout/TabPlaceholder';
+import { Button, Card, Screen, Skeleton, Text } from '@/components/ui';
+import { AccountCard } from '@/features/settings/components/AccountCard';
+import { AppearanceCard } from '@/features/settings/components/AppearanceCard';
+import { RemindersCard } from '@/features/settings/components/RemindersCard';
+import { SupportCard } from '@/features/settings/components/SupportCard';
+import { useMe, useProfile } from '@/features/settings/queries';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { useThemedStyles } from '@/theme';
 
 // The gallery route only exists in dev; cast once so typed routes stay quiet
@@ -26,56 +37,72 @@ const GALLERY_HREF = '/gallery' as Href;
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const me = useMe();
+  const profile = useProfile();
+
+  const refetchMe = me.refetch;
+  const refetchProfile = profile.refetch;
+  const refetch = useCallback(() => Promise.all([refetchMe(), refetchProfile()]), [refetchMe, refetchProfile]);
+  useRefetchOnFocus(refetch);
 
   const styles = useThemedStyles((t) => ({
-    // Card title, then a short note, then the buttons.
-    cardTitle: { marginBottom: t.spacing[4] },
-    note: { marginBottom: t.spacing[16] },
-    // Buttons stacked with the list gap.
-    actions: { gap: t.spacing[12] },
-    // Space between the two cards: the gap between groups, larger than the
-    // gap inside a card.
-    stack: { gap: t.spacing[16] },
+    // Screen title with air under the status bar, like every top-level screen.
+    title: { marginTop: t.spacing[24], marginBottom: t.spacing[24] },
+    // The cards, one under the other at the standard card gap.
+    cards: { gap: t.layout.cardGap },
+    // Skeleton rows sit where the real rows will be, 16 apart.
+    skeleton: { gap: t.spacing[16] },
   }));
 
-  return (
-    <TabPlaceholder
-      title="Settings"
-      icon={Settings}
-      emptyTitle="Reminders, timezone and account go here"
-      emptyMessage="The full settings screen arrives in Milestone 7."
-    >
-      <View style={styles.stack}>
-        <Card>
-          <Text variant="title3" style={styles.cardTitle}>
-            Support
-          </Text>
-          <Text variant="callout" color="textSecondary" style={styles.note}>
-            If something goes wrong, copy this and send it with your report.
-          </Text>
-          <CopyDebugInfo variant="secondary" size="md" fullWidth />
-        </Card>
+  // Either read failing with nothing cached: say so once, with one retry.
+  const failed = (!me.data && me.error) || (!profile.data && profile.error) || null;
+  const loadingProfile = !profile.data && !profile.error;
 
-        {__DEV__ ? (
-          <Card>
-            <Text variant="title3" style={styles.cardTitle}>
-              Development only
-            </Text>
-            <Text variant="callout" color="textSecondary" style={styles.note}>
-              Logging out here only removes the saved sign-in from this device.
-            </Text>
-            <View style={styles.actions}>
-              <Button label="Log out" variant="destructive" fullWidth onPress={() => void signOut()} />
-              <Button
-                label="Open design gallery"
-                variant="secondary"
-                fullWidth
-                onPress={() => router.push(GALLERY_HREF)}
-              />
-            </View>
+  return (
+    <Screen scroll bottomSpace={TAB_BAR_CLEARANCE}>
+      <Text variant="title1" accessibilityRole="header" style={styles.title}>
+        Settings
+      </Text>
+      <View style={styles.cards}>
+        <AppearanceCard />
+
+        {failed ? (
+          <Notice
+            message={isApiError(failed) ? failed.message : "We couldn't load your settings. Try again."}
+          >
+            <Button
+              label="Try again"
+              variant="secondary"
+              size="sm"
+              loading={me.isFetching || profile.isFetching}
+              onPress={() => void refetch()}
+            />
+            {isApiError(failed) && (failed.status ?? 0) >= 500 ? <CopyDebugInfo /> : null}
+          </Notice>
+        ) : null}
+
+        {profile.data ? (
+          <RemindersCard profile={profile.data} userId={me.data?.id} />
+        ) : loadingProfile ? (
+          <Card style={styles.skeleton}>
+            <Skeleton width="40%" height={24} />
+            <Skeleton height={52} />
+            <Skeleton height={52} />
           </Card>
         ) : null}
+
+        <AccountCard me={me.data} />
+        <SupportCard />
+
+        {__DEV__ ? (
+          <Button
+            label="Open design gallery"
+            variant="ghost"
+            fullWidth
+            onPress={() => router.push(GALLERY_HREF)}
+          />
+        ) : null}
       </View>
-    </TabPlaceholder>
+    </Screen>
   );
 }

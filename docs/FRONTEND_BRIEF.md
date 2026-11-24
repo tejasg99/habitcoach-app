@@ -536,6 +536,47 @@ How it fits:
   server values ("... 11 items completed, on 5 active days. 1 day had nothing planned. Today is in progress: 1 of
   4 done."); axis labels and legends are hidden from screen readers because the summary already covers them.
 
+### Folder structure added in Milestone 7 (Settings)
+
+```
+src/components/ui/   Sheet (bottom sheet: scrim, grabber, keyboard, busy lock), SegmentedControl
+src/features/settings/
+  queries.ts          settingsKeys (['me'], ['profile']), fetchMe, fetchProfile, useMe, useProfile
+  api.ts              patchProfile(change), patchDisplayName, deleteMe; toProfilePatch / toDisplayNamePatch (the PATCH bodies)
+  mutations.ts        profileMutationOptions (optimistic, revert, one at a time), useSaveProfile, useSaveDisplayName,
+                      saveErrorMessage
+  displayName.ts      displayNameError (signup's 100 character rule)
+  timezonePrompt.ts   timezoneOffer, checkTimezone, rememberTimezoneAnswer, parseTimezoneAnswer (pure)
+  components/         AppearanceCard, RemindersCard, AccountCard, SupportCard, SettingsRow, TimezoneSheet,
+                      TimezonePromptHost, DisplayNameSheet, DeleteAccountSheet
+src/features/auth/accountCleanup.ts       runLogout, runDeleteAccount (injected steps); session.ts wires signOut / deleteAccount
+src/features/notifications/
+  pushToken.ts        unregisterStoredPushToken (M8 only has to call savePushToken after registering)
+  permission.ts       readNotificationPermission, useNotificationPermission (read only)
+src/hooks/useDeviceTimeZone.ts            the phone's zone, re-read on foreground
+src/lib/timezone.ts   + detectDeviceTimeZone (null when unknown), sameTimeZone (old zone names)
+src/lib/storage.ts    + push token and time zone answer (SecureStore)
+src/api/status.ts     + latest X-Request-ID; debugInfo.ts and CopyDebugInfo.tsx include it
+src/app/(tabs)/settings.tsx               the Settings screen (replaces the placeholder)
+src/__tests__/        settings-patch, timezone-prompt, account-cleanup
+```
+
+How it fits:
+
+- **One control = one PATCH with one field.** `ProfileChange` is a single `{ field, value }`, so a body can never hold
+  more. Reminder changes are optimistic and revert only their own field; a time zone change waits for the server and
+  then invalidates `['plan']` and `['progress']`. Saves run in series (`scope: 'profile'`).
+- **The startup gate's `/users/me` and `/onboarding/me` reads go through the query cache**, so Settings and the time
+  zone check reuse them. `onboardingCompleted()` drops the cached profile.
+- **Time zone prompt:** `TimezonePromptHost` in the tabs layout checks on mount (launch, login) and on each return to
+  the foreground, without extra requests. Accept and dismiss are both remembered as `{ userId, zone }`; only the last
+  answer is kept. Settings keeps a "Change time zone" button while the two differ.
+- **Logout:** unregister the push token (at most 5 s, then aborted), delete tokens and push token, clear the cache,
+  login. **Delete:** `DELETE /users/me`, then tokens, push token, time zone answer and cache, login.
+  Both keep the theme. A failed delete changes nothing locally. Storage failures never stop the remaining steps.
+- **Refresh after logout:** the auth middleware ignores a refresh that finishes after its refresh token was removed or
+  replaced, so it can neither restore a deleted session nor sign out a new one.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -579,6 +620,10 @@ docs/
 - **M5: no new dependencies.** TanStack Query mutations, `expo-haptics`, Reanimated (`useReducedMotion`,
   `withSpring`, `withTiming`), `lucide-react-native`, RN `RefreshControl` and `AccessibilityInfo`.
 - **M6: no new dependencies.** Charts use the already-installed `react-native-svg`; the heatmap is plain Views.
+
+- **M7: no new dependencies.** The notification permission is read from `expo-notifications/build/NotificationPermissions`
+  (a deep import): the package index also starts push-token listening, which Expo Go on Android does not support. M8
+  can switch to the normal import once a development build is used.
 
 ### Deviations from the brief
 
@@ -762,6 +807,32 @@ docs/
   element, the heatmap smaller and different in kind; signature: the 4 px today dot shared with the Plan tab);
   `docs/DESIGN.md` stayed binding for every visual value.
 
+### Deviations and additions in Milestone 7
+
+- **The time zone answer lives in SecureStore**, not AsyncStorage (reserved for theme preferences). It holds the
+  account id and a zone name.
+- **The time zone check is a component, not a gate background task**: it needs a sheet and also runs on foreground.
+- **Old zone names** (such as Asia/Calcutta for Asia/Kolkata) count as the same zone; short hand-written list in
+  `src/lib/timezone.ts`.
+- **Deleting the account keeps the theme** (owner decision): it is a device preference, like on logout.
+- **Display name is edited in a sheet**, so the keyboard and the floating tab bar never cover the field.
+- **iOS reminder time is saved with a "Save time" button**; the spinner reports every tick. Android saves on the
+  system dialog's OK.
+- **Blocked notifications note** appears only while reminders are on. Android 13+ reports "denied" before the app has
+  ever asked, so the note can show there until M8 asks for the permission; its advice still works.
+- **Log out is a neutral button with red text** (owner decision; the design doc lists sign out as destructive): new
+  `neutralDanger` Button variant. Delete account keeps the destructive button.
+- **"Latest X-Request-ID" is the id of the last settled request, failed or not**; the copied text also keeps the last
+  failed request's details.
+- **Transport:** a signal that was already aborted now aborts the request (found by the logout tests).
+- **Left as they are (focused diff):** `RegenerateSheet` could use the new `Sheet`; the `TabPlaceholder` component is
+  now unused (only its `TAB_BAR_CLEARANCE` is); the dev Log out on onboarding stays.
+- **New copy** (approved by the owner): all sheets and card texts, e.g. "Update your time zone?", "Notifications are off on
+  this phone", "Around 8:00 pm, only if nothing is checked off yet", "Delete your account?".
+- The `unslop` skill was applied as direction (product: the settings of a daily habit coach; character: calm, plain,
+  a little warm; the accent swatches are the one colourful element, everything else neutral; the inset row from
+  onboarding is the repeated detail); `docs/DESIGN.md` stayed binding for every visual value.
+
 ### Milestone status
 
 | Milestone | Status |
@@ -773,6 +844,6 @@ docs/
 | M4 Plan | Done (manual device checks pending: real generation, each error status, sheet on iOS/Android, 130% text) |
 | M5 Today | Done (tested on device in Expo Go by the owner) |
 | M6 Progress | Done (tested on device by the owner; month markers in the calendar added afterwards, not yet seen on device) |
-| M7 | Not started |
+| M7 Settings | Done (tested on device by the owner; the neutral Log out button and keeping the theme after account deletion were changed afterwards, not yet seen on device) |
 | M8 | Not started |
 | M9 | Not started |

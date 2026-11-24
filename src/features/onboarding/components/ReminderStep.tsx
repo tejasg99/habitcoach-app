@@ -43,13 +43,13 @@ export type ReminderStepProps = {
 };
 
 /** "HH:MM:SS" -> a Date on a fixed day with that wall-clock time (picker input only). */
-function timeToDate(time: string): Date {
+export function timeToDate(time: string): Date {
   const { hours, minutes } = parseReminderTime(time);
   return new Date(2000, 0, 1, hours, minutes, 0);
 }
 
 /** The picker's Date -> "HH:MM:SS" from its local hours and minutes. */
-function dateToTime(date: Date): string {
+export function dateToTime(date: Date): string {
   return reminderTimeToApi(date.getHours(), date.getMinutes());
 }
 

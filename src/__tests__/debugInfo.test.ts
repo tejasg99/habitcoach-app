@@ -33,6 +33,12 @@ describe('formatDebugInfo', () => {
     expect(text).toContain('Status: no response (network error or timeout)');
   });
 
+  it('includes the latest request id when there is one', () => {
+    expect(formatDebugInfo(null, { ...context, latestRequestId: 'latest99' })).toBe(
+      'App: 1.0.0 (android 35)\nLatest request ID: latest99\nNo failed request recorded since the app started',
+    );
+  });
+
   it('says so when nothing has failed', () => {
     expect(formatDebugInfo(null, context)).toBe(
       'App: 1.0.0 (android 35)\nNo failed request recorded since the app started',

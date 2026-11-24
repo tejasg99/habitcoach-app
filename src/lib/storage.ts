@@ -1,7 +1,9 @@
 /**
  * src/lib/storage.ts
  *
- * Secure token storage backed by expo-secure-store.
+ * Secure storage backed by expo-secure-store: the auth tokens, the registered
+ * push token, and the last answer to the time zone prompt (kept here because
+ * AsyncStorage is reserved for theme preferences).
  *
  * Rules (from the brief):
  *  - Access tokens and refresh tokens ONLY go into expo-secure-store.
@@ -20,6 +22,8 @@ import * as SecureStore from 'expo-secure-store';
 const KEYS = {
   accessToken: 'auth.access_token',
   refreshToken: 'auth.refresh_token',
+  pushToken: 'push.expo_token',
+  timezoneAnswer: 'timezone.last_answer',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -71,3 +75,36 @@ export const secureTokenStore = {
   saveTokens,
   clearTokens,
 };
+
+// ---------------------------------------------------------------------------
+// Push token (Milestone 8 saves it after registering it with the API)
+// ---------------------------------------------------------------------------
+
+export async function savePushToken(token: string): Promise<void> {
+  await SecureStore.setItemAsync(KEYS.pushToken, token);
+}
+
+/** The push token this device registered, or null if it never did. */
+export async function getPushToken(): Promise<string | null> {
+  return SecureStore.getItemAsync(KEYS.pushToken);
+}
+
+export async function clearPushToken(): Promise<void> {
+  await SecureStore.deleteItemAsync(KEYS.pushToken);
+}
+
+// ---------------------------------------------------------------------------
+// Time zone prompt (the shape is owned by features/settings/timezonePrompt.ts)
+// ---------------------------------------------------------------------------
+
+export async function saveTimezoneAnswer(raw: string): Promise<void> {
+  await SecureStore.setItemAsync(KEYS.timezoneAnswer, raw);
+}
+
+export async function getTimezoneAnswer(): Promise<string | null> {
+  return SecureStore.getItemAsync(KEYS.timezoneAnswer);
+}
+
+export async function clearTimezoneAnswer(): Promise<void> {
+  await SecureStore.deleteItemAsync(KEYS.timezoneAnswer);
+}

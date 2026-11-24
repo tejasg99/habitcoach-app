@@ -2,7 +2,7 @@
  * src/components/layout/CopyDebugInfo.tsx
  *
  * "Copy debug info" action (brief: "Debugging support"). Copies the latest
- * failed request's X-Request-ID, method, path, status and time, plus app
+ * X-Request-ID and the last failed request's X-Request-ID, method, path, status and time, plus app
  * version and platform, so a bug report can be matched to the server logs.
  * Used on unexpected-error screens and in Settings.
  *
@@ -17,12 +17,21 @@ import { Copy } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
-import { getLastFailedRequest } from '@/api/status';
+import { getLastFailedRequest, getLatestRequestId } from '@/api/status';
 import { Button, type ButtonProps } from '@/components/ui';
-import { formatDebugInfo } from '@/lib/debugInfo';
+import { formatDebugInfo, type DebugContext } from '@/lib/debugInfo';
 
 /** How long "Copied" stays before the label goes back. */
 const COPIED_MS = 2000;
+
+/** App version, platform and latest request id. Also shown in Settings. */
+export function debugContext(): DebugContext {
+  return {
+    appVersion: Constants.expoConfig?.version ?? null,
+    platform: `${Platform.OS} ${String(Platform.Version)}`,
+    latestRequestId: getLatestRequestId(),
+  };
+}
 
 type CopyDebugInfoProps = Pick<ButtonProps, 'variant' | 'size' | 'fullWidth' | 'style'>;
 
@@ -37,10 +46,7 @@ export function CopyDebugInfo({ variant = 'ghost', size = 'sm', ...rest }: CopyD
   }, [copied]);
 
   const copy = async () => {
-    const text = formatDebugInfo(getLastFailedRequest(), {
-      appVersion: Constants.expoConfig?.version ?? null,
-      platform: `${Platform.OS} ${String(Platform.Version)}`,
-    });
+    const text = formatDebugInfo(getLastFailedRequest(), debugContext());
     await Clipboard.setStringAsync(text);
     setCopied(true);
   };

@@ -11,6 +11,7 @@ import { CalendarDays, ChartNoAxesColumn, Settings, Sun, type LucideIcon } from 
 import type { ComponentProps } from 'react';
 
 import { TabBar, type TabBarItem } from '@/components/ui';
+import { TimezonePromptHost } from '@/features/settings/components/TimezonePromptHost';
 import { useTheme } from '@/theme';
 
 /** Label and icon per route file name. The order here is the order in the bar. */
@@ -52,18 +53,22 @@ function RouterTabBar({ state, emitter, navigateToTab }: RouterTabBarProps) {
 export default function TabsLayout() {
   const { colors } = useTheme();
   return (
-    <Tabs
-      tabBar={(props) => <RouterTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        // Screens paint the theme background; the floating bar sits on top.
-        sceneStyle: { backgroundColor: colors.bg },
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'Today' }} />
-      <Tabs.Screen name="plan" options={{ title: 'Plan' }} />
-      <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-    </Tabs>
+    <>
+      <Tabs
+        tabBar={(props) => <RouterTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+          // Screens paint the theme background; the floating bar sits on top.
+          sceneStyle: { backgroundColor: colors.bg },
+        }}
+      >
+        <Tabs.Screen name="index" options={{ title: 'Today' }} />
+        <Tabs.Screen name="plan" options={{ title: 'Plan' }} />
+        <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
+        <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      </Tabs>
+      {/* Offers to update the saved time zone after travel (app open and foreground). */}
+      <TimezonePromptHost />
+    </>
   );
 }

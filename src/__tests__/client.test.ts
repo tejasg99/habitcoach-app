@@ -10,7 +10,7 @@
 import { createApiClient } from '@/api/client';
 import { unwrap } from '@/api/errors';
 import type { TokenStore } from '@/api/authMiddleware';
-import { getLastFailedRequest, isServerWaking, resetApiStatusForTests } from '@/api/status';
+import { getLastFailedRequest, getLatestRequestId, isServerWaking, resetApiStatusForTests } from '@/api/status';
 import { TimeoutError } from '@/api/transport';
 
 const BASE = 'http://localhost:8000';
@@ -121,6 +121,27 @@ describe('auth middleware', () => {
     expect(server.calls[1]!.body).toBe(JSON.stringify({ refresh_token: 'old-refresh' }));
     expect(server.calls[2]!.auth).toBe('Bearer new-access');
     expect(tokens.saveTokens).toHaveBeenCalledWith('new-access', 'new-refresh');
+  });
+
+  it.each([200, 401])('logout during a refresh (%s): its outcome is ignored', async (refreshStatus) => {
+    const { client, tokens, onSessionExpired, server } = setup({ refreshStatus });
+    const pending = client.GET('/users/me');
+    // Let the 401 arrive and the refresh start, then log out.
+    while (server.count('/auth/refresh') === 0) await new Promise((r) => setTimeout(r, 1));
+    await tokens.clearTokens();
+    const { response } = await pending;
+    expect(response.status).toBe(401);
+    expect(tokens.saveTokens).not.toHaveBeenCalled();
+    expect(tokens.store).toEqual({ access: null, refresh: null });
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it('keeps the latest X-Request-ID of successful requests too', async () => {
+    const { client, tokens } = setup();
+    tokens.store.access = 'new-access';
+    await client.GET('/users/me');
+    expect(getLatestRequestId()).toBe('client-id-1234');
+    expect(getLastFailedRequest()).toBeNull();
   });
 
   it('retries a POST with its original body', async () => {

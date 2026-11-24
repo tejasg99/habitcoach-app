@@ -14,6 +14,8 @@ export { Input, type InputHandle, type InputProps } from './Input';
 export { ProgressBar, type ProgressBarProps } from './ProgressBar';
 export { ProgressRing, type ProgressRingProps } from './ProgressRing';
 export { Screen, type ScreenProps } from './Screen';
+export { SegmentedControl, type SegmentedControlProps } from './SegmentedControl';
+export { Sheet, type SheetProps } from './Sheet';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { TabBar, type TabBarItem, type TabBarProps } from './TabBar';
 export { Text, type TextColor, type TextProps } from './Text';

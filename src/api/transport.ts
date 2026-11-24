@@ -99,6 +99,7 @@ export function createTransport(options: TransportOptions = {}): typeof globalTh
     const controller = new AbortController();
     const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
     const forwardAbort = () => controller.abort();
+    if (callerSignal?.aborted) forwardAbort(); // aborted before we got here
     callerSignal?.addEventListener('abort', forwardAbort);
 
     let timedOut = false;

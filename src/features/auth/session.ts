@@ -19,12 +19,17 @@
 import { useSyncExternalStore } from 'react';
 
 import { apiClient } from '@/api/client';
-import { unwrap, type ApiError } from '@/api/errors';
+import { type ApiError } from '@/api/errors';
 import { onSessionExpired } from '@/api/events';
+import { unregisterStoredPushToken } from '@/features/notifications/pushToken';
 import { fetchTodayPlan, planKeys } from '@/features/plan/queries';
+import { deleteMe } from '@/features/settings/api';
+import { fetchMe, fetchProfile, settingsKeys } from '@/features/settings/queries';
 import { queryClient } from '@/lib/queryClient';
 import { continueToTabs, runStartup, type StartupDeps } from '@/lib/startup';
-import { clearTokens, hasStoredTokens } from '@/lib/storage';
+import { clearPushToken, clearTimezoneAnswer, clearTokens, hasStoredTokens } from '@/lib/storage';
+
+import { runDeleteAccount, runLogout, type LogoutDeps } from './accountCleanup';
 
 export type SessionPhase = 'booting' | 'checking' | 'error' | 'signedOut' | 'onboarding' | 'ready';
 
@@ -74,15 +79,16 @@ export function useSession(): SessionState {
 const startupDeps: StartupDeps = {
   warmUp: () => apiClient.GET('/health'),
   hasTokens: hasStoredTokens,
-  readMe: () => unwrap('read_me', apiClient.GET('/users/me')),
-  readProfile: () => unwrap('read_my_profile', apiClient.GET('/onboarding/me')),
-  // Through the query cache, so the Today and Plan tabs reuse this answer
-  // instead of asking again right after the gate.
+  // All three reads go through the query cache, so Settings, the time zone
+  // check, Today and Plan reuse these answers right after the gate.
+  readMe: () => queryClient.fetchQuery({ queryKey: settingsKeys.me, queryFn: fetchMe, staleTime: 0 }),
+  readProfile: () => queryClient.fetchQuery({ queryKey: settingsKeys.profile, queryFn: fetchProfile, staleTime: 0 }),
   readToday: () => queryClient.fetchQuery({ queryKey: planKeys.today, queryFn: fetchTodayPlan, staleTime: 0 }),
   onNetworkCheck: () => setState({ phase: 'checking', hasPlan: null, error: null }),
   runBackgroundTasks: () => {
-    // Push token registration (Milestone 8) and the timezone check
-    // (Milestone 7) are started from here.
+    // Push token registration (Milestone 8) starts from here. The time zone
+    // check lives in TimezonePromptHost: it needs a sheet, and also runs each
+    // time the app returns to the foreground.
   },
 };
 
@@ -132,6 +138,8 @@ export function sessionSignedIn(): Promise<void> {
  */
 export async function onboardingCompleted(): Promise<void> {
   const id = ++runId;
+  // Anything cached before the save (an incomplete profile) is now wrong.
+  queryClient.removeQueries({ queryKey: settingsKeys.profile });
   const decision = await continueToTabs(startupDeps);
   if (id !== runId) return;
   setState(
@@ -161,15 +169,43 @@ export function retrySession(): Promise<void> {
   return runGate(false);
 }
 
+// What leaving the account touches. The order is in accountCleanup.ts.
+const logoutDeps: LogoutDeps = {
+  unregisterPushToken: (signal) => unregisterStoredPushToken(signal),
+  clearTokens,
+  clearPushToken,
+  clearCache: () => queryClient.clear(), // the next account must never see this one's cached data
+  goToLogin: () => {
+    runId += 1; // cancel any gate run still in flight
+    setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' });
+  },
+};
+
+// One logout at a time: a second tap while it runs joins the first.
+let signOutInFlight: Promise<void> | null = null;
+
 /**
- * Client-side logout: delete the stored tokens and go to the auth stack.
- * (Milestone 8 adds "unregister the push token" before this.)
+ * Client-side logout: unregister the push token (if this device has one),
+ * delete the stored tokens, clear the cache and go to the login screen.
  */
-export async function signOut(): Promise<void> {
-  runId += 1; // cancel any gate run still in flight
-  await clearTokens();
-  queryClient.clear(); // the next account must never see this one's cached data
-  setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' });
+export function signOut(): Promise<void> {
+  runId += 1; // a gate run still in flight must not reopen the app
+  signOutInFlight ??= runLogout(logoutDeps).finally(() => {
+    signOutInFlight = null;
+  });
+  return signOutInFlight;
+}
+
+/**
+ * DELETE /users/me, then clear the account's data on the device (the theme
+ * choice stays) and go to the login screen. Throws ApiError (and changes nothing) if the call fails.
+ */
+export function deleteAccount(): Promise<void> {
+  return runDeleteAccount({
+    ...logoutDeps,
+    deleteMe: () => deleteMe(),
+    clearTimezoneAnswer,
+  });
 }
 
 // The API client gave up on refreshing: tokens are already cleared.

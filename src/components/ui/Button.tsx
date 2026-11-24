@@ -5,6 +5,7 @@
  *
  * Variants:  primary (accent fill) | secondary (muted fill) | soft (accent tint)
  *            | ghost (no fill) | destructive (danger tint)
+ *            | neutralDanger (muted fill, red label: leaving without losing data)
  * Sizes:     lg 52 (full-width CTA) | md 44 | sm 36 (never shorter)
  * States:    pressed  = scale 0.98 + darker fill (primary: accentDeep in light,
  *                       90% opacity in dark; others: 90% opacity)
@@ -19,7 +20,7 @@ import type { LucideIcon } from 'lucide-react-native';
 import { useTheme, useThemedStyles, type ThemeColors } from '@/theme';
 import { Text, type TextColor } from './Text';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'soft' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'soft' | 'ghost' | 'destructive' | 'neutralDanger';
 export type ButtonSize = 'lg' | 'md' | 'sm';
 
 export type ButtonProps = {
@@ -45,6 +46,8 @@ const VARIANT_COLORS: Record<ButtonVariant, { fill: keyof ThemeColors | null; la
   soft: { fill: 'accentSoft', label: 'accentText' },
   ghost: { fill: null, label: 'accentText' },
   destructive: { fill: 'dangerSoft', label: 'dangerText' },
+  // Same quiet fill as `secondary`, so only the red words carry the warning.
+  neutralDanger: { fill: 'surfaceMuted', label: 'dangerText' },
 };
 
 export function Button({

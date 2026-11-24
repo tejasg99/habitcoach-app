@@ -24,7 +24,7 @@
 import type { Middleware } from 'openapi-fetch';
 
 import type { paths } from './schema';
-import { recordFailedRequest } from './status';
+import { recordFailedRequest, recordRequestId } from './status';
 
 /** Where tokens live. The app passes the SecureStore implementation from src/lib/storage.ts. */
 export type TokenStore = {
@@ -113,6 +113,11 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions): Middleware
         } catch {
           result = 'failed';
         }
+        // The person logged out (or deleted the account, or logged in as someone
+        // else) while this refresh was running. Its outcome belongs to a session
+        // that is gone: saving the new pair would bring that session back, and
+        // expiring would sign out the new one.
+        if ((await tokens.getRefreshToken()) !== refreshToken) return null;
         if (result === 'rejected') {
           await expireSession();
           return null;
@@ -127,10 +132,13 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions): Middleware
     return refreshInFlight;
   }
 
-  function recordIfFailed(request: Request, response: Response, schemaPath: string): void {
+  /** Keeps the latest X-Request-ID, and the details when the request failed. */
+  function recordResponse(request: Request, response: Response, schemaPath: string): void {
+    const requestId = response.headers.get(REQUEST_ID_HEADER) ?? request.headers.get(REQUEST_ID_HEADER);
+    recordRequestId(requestId);
     if (response.ok) return;
     recordFailedRequest({
-      requestId: response.headers.get(REQUEST_ID_HEADER) ?? request.headers.get(REQUEST_ID_HEADER),
+      requestId,
       method: request.method,
       path: schemaPath,
       status: response.status,
@@ -154,7 +162,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions): Middleware
     async onResponse({ request, response, schemaPath, id, options: fetchOptions }) {
       const retryCopy = retryCopies.get(id);
       retryCopies.delete(id);
-      recordIfFailed(request, response, schemaPath);
+      recordResponse(request, response, schemaPath);
 
       // Only a 401 from a protected endpoint starts the refresh flow.
       if (response.status !== 401 || isPublic(schemaPath) || !retryCopy) return undefined;
@@ -172,7 +180,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions): Middleware
       // middleware again, so it can never loop.
       retryCopy.headers.set('Authorization', `Bearer ${newToken}`);
       const retried = await fetchOptions.fetch(retryCopy);
-      recordIfFailed(retryCopy, retried, schemaPath);
+      recordResponse(retryCopy, retried, schemaPath);
 
       // A fresh token that is still refused (e.g. the account was deleted):
       // the session is over.
@@ -182,6 +190,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions): Middleware
 
     onError({ request, schemaPath, id }) {
       retryCopies.delete(id);
+      recordRequestId(request.headers.get(REQUEST_ID_HEADER));
       recordFailedRequest({
         requestId: request.headers.get(REQUEST_ID_HEADER),
         method: request.method,

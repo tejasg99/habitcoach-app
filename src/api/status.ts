@@ -1,7 +1,7 @@
 /**
  * src/api/status.ts
  *
- * Two tiny observable stores fed by the API transport, readable from React:
+ * Three tiny observable stores fed by the API transport, readable from React:
  *
  *  1. "Is the server waking up?" Any request that has been in flight for more
  *     than ~5 s flips this on, so the UI can say "Waking up the server..."
@@ -11,7 +11,10 @@
  *     failed call, plus method, path and status. A later "Copy debug info"
  *     action reads it. It never holds tokens, bodies or query strings.
  *
- * Both are plain modules (no React context) so the non-React client code can
+ *  3. "Latest X-Request-ID": the id of the most recent request, failed or not,
+ *     shown in Settings.
+ *
+ * All are plain modules (no React context) so the non-React client code can
  * write to them, and `useSyncExternalStore` lets components subscribe.
  */
 
@@ -98,8 +101,28 @@ export function useLastFailedRequest(): FailedRequestInfo | null {
   return useSyncExternalStore(lastFailure.subscribe, lastFailure.get, lastFailure.get);
 }
 
-/** Test helper: reset both stores. */
+// ---------------------------------------------------------------------------
+// Latest X-Request-ID
+// ---------------------------------------------------------------------------
+
+const latestRequestId = createStore<string | null>(null);
+
+/** Called by the auth middleware for every settled request. */
+export function recordRequestId(id: string | null): void {
+  if (id) latestRequestId.set(id);
+}
+
+export function getLatestRequestId(): string | null {
+  return latestRequestId.get();
+}
+
+export function useLatestRequestId(): string | null {
+  return useSyncExternalStore(latestRequestId.subscribe, latestRequestId.get, latestRequestId.get);
+}
+
+/** Test helper: reset every store. */
 export function resetApiStatusForTests(): void {
   slowRequests.set(0);
   lastFailure.set(null);
+  latestRequestId.set(null);
 }
