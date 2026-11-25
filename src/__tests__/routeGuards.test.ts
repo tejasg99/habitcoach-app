@@ -11,7 +11,7 @@ const PHASES: SessionPhase[] = ['booting', 'checking', 'error', 'signedOut', 'on
 
 describe('routeGuards', () => {
   it.each(PHASES)('%s opens exactly one main group', (phase) => {
-    const { gallery: _gallery, ...main } = routeGuards(phase, true);
+    const { gallery: _gallery, reminderPermission: _reminder, ...main } = routeGuards(phase, true);
     expect(Object.values(main).filter(Boolean)).toHaveLength(1);
   });
 
@@ -24,6 +24,10 @@ describe('routeGuards', () => {
     ['ready', 'tabs'],
   ])('%s -> %s', (phase, open) => {
     expect(routeGuards(phase, false)[open as keyof ReturnType<typeof routeGuards>]).toBe(true);
+  });
+
+  it('opens the reminder explanation only on top of the tabs', () => {
+    for (const phase of PHASES) expect(routeGuards(phase, false).reminderPermission).toBe(phase === 'ready');
   });
 
   it('opens the gallery only next to the tabs, and only in dev', () => {

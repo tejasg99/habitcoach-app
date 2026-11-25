@@ -5,19 +5,23 @@
  * on its own with a one-field PATCH.
  *
  * The switch is the server's `reminders_enabled` and works whatever the phone's
- * notification permission is. If the phone blocks notifications while reminders
- * are on, a neutral note says so and links to system settings.
+ * notification permission is. If the phone does not allow notifications while
+ * reminders are on, a neutral note says so. It leads to the explanation screen
+ * while the phone can still ask, otherwise to system settings. Switching
+ * reminders on opens that screen too.
  *
  * Copy says "around" because reminders go out on a schedule that can run late.
  */
 
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Platform, Switch, View } from 'react-native';
 
 import { Notice } from '@/components/layout/Notice';
 import { Button, Card, Text } from '@/components/ui';
-import { useNotificationPermission } from '@/features/notifications/permission';
+import { readNotificationPermission, useNotificationPermission } from '@/features/notifications/permission';
+import { REMINDER_PERMISSION_HREF } from '@/features/notifications/routes';
 import { FieldMessage } from '@/features/onboarding/components/FieldMessage';
 import { dateToTime, timeToDate } from '@/features/onboarding/components/ReminderStep';
 import { useDeviceTimeZone } from '@/hooks/useDeviceTimeZone';
@@ -34,6 +38,7 @@ import { TimezoneSheet } from './TimezoneSheet';
 export function RemindersCard({ profile, userId }: { profile: Profile; userId: number | undefined }) {
   const { colors, mode } = useTheme();
   const permission = useNotificationPermission();
+  const router = useRouter();
 
   // One mutation per control, so each shows its own error.
   const saveEnabled = useSaveProfile();
@@ -69,6 +74,19 @@ export function RemindersCard({ profile, userId }: { profile: Profile; userId: n
     if (next !== profile.reminder_time) saveTime.mutate({ field: 'reminder_time', value: next });
   };
 
+  const saveReminders = (next: boolean) => {
+    // Taps while a save runs are ignored, so on/off can never cross over.
+    if (saveEnabled.isPending) return;
+    saveEnabled.mutate(
+      { field: 'reminders_enabled', value: next },
+      {
+        onSuccess: async () => {
+          if (next && (await readNotificationPermission()) === 'askable') router.push(REMINDER_PERMISSION_HREF);
+        },
+      },
+    );
+  };
+
   const openPicker = () => {
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({
@@ -101,10 +119,7 @@ export function RemindersCard({ profile, userId }: { profile: Profile; userId: n
         </View>
         <Switch
           value={enabled}
-          // Taps while a save runs are ignored, so on/off can never cross over.
-          onValueChange={(next) => {
-            if (!saveEnabled.isPending) saveEnabled.mutate({ field: 'reminders_enabled', value: next });
-          }}
+          onValueChange={saveReminders}
           accessibilityLabel="Daily reminder"
           accessibilityState={{ checked: enabled, busy: saveEnabled.isPending }}
           // Track: accent when on, muted when off. Thumb: the ink that sits on
@@ -116,6 +131,23 @@ export function RemindersCard({ profile, userId }: { profile: Profile; userId: n
         />
       </View>
       <FieldMessage message={saveErrorMessage(saveEnabled.error, 'reminders_enabled')} />
+
+      {enabled && permission === 'askable' ? (
+        <View style={styles.block}>
+          <Notice
+            tone="neutral"
+            title="Notifications aren't set up on this phone"
+            message="Reminders are on for your account, but this phone won't show them until you allow notifications."
+          >
+            <Button
+              label="Set up notifications"
+              variant="soft"
+              size="sm"
+              onPress={() => router.push(REMINDER_PERMISSION_HREF)}
+            />
+          </Notice>
+        </View>
+      ) : null}
 
       {enabled && permission === 'denied' ? (
         <View style={styles.block}>

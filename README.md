@@ -35,7 +35,7 @@ Product behaviour is in `docs/FRONTEND_BRIEF.md`, visual design in `docs/DESIGN.
    npm start        # then press a (Android) or i (iOS), or scan the QR code in Expo Go
    ```
 
-Push notifications will need a **development build** (not Expo Go) once they are added in a later milestone.
+Push notifications need a **development build** on a physical device (not Expo Go): see `docs/PUSH_TESTING.md`. Everything else still runs in Expo Go.
 
 ## Checks
 

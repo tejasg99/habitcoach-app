@@ -11,6 +11,7 @@ import { CalendarDays, ChartNoAxesColumn, Settings, Sun, type LucideIcon } from 
 import type { ComponentProps } from 'react';
 
 import { TabBar, type TabBarItem } from '@/components/ui';
+import { NotificationsHost } from '@/features/notifications/components/NotificationsHost';
 import { TimezonePromptHost } from '@/features/settings/components/TimezonePromptHost';
 import { useTheme } from '@/theme';
 
@@ -69,6 +70,8 @@ export default function TabsLayout() {
       </Tabs>
       {/* Offers to update the saved time zone after travel (app open and foreground). */}
       <TimezonePromptHost />
+      {/* Notification taps, push registration retries, the one-time reminder explanation. */}
+      <NotificationsHost />
     </>
   );
 }

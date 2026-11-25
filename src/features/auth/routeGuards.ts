@@ -21,6 +21,8 @@ export type RouteGuards = {
   auth: boolean;
   onboarding: boolean;
   tabs: boolean;
+  /** The reminder explanation, opened on top of the tabs. Like the gallery, never open without them. */
+  reminderPermission: boolean;
   /** Dev-only design gallery, reachable from the Settings tab. */
   gallery: boolean;
 };
@@ -32,6 +34,7 @@ export function routeGuards(phase: SessionPhase, isDev: boolean): RouteGuards {
     auth: phase === 'signedOut',
     onboarding: phase === 'onboarding',
     tabs,
+    reminderPermission: tabs,
     gallery: isDev && tabs,
   };
 }

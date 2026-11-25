@@ -34,6 +34,10 @@ import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
 // instead of on the first network call.
 import '@/lib/env';
 
+// Imported for its side effect: decides how a reminder looks while the app is
+// open. At module level, so it is set before any notification can arrive.
+import '@/features/notifications/foreground';
+
 // Must run at module load (before the first render) to stop the splash from
 // auto-hiding. It is hidden manually below once everything is ready.
 void SplashScreen.preventAutoHideAsync();
@@ -107,6 +111,10 @@ function RootNavigator() {
         </Stack.Protected>
         <Stack.Protected guard={guards.tabs} redirectTo={redirectTo}>
           <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        </Stack.Protected>
+        {/* Explains reminders before the phone's permission dialog; on top of the tabs. */}
+        <Stack.Protected guard={guards.reminderPermission} redirectTo={redirectTo}>
+          <Stack.Screen name="reminder-permission" options={{ animation: 'fade' }} />
         </Stack.Protected>
         {/* Design gallery: development builds only, and only next to the tabs. */}
         <Stack.Protected guard={guards.gallery} redirectTo={redirectTo}>

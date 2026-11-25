@@ -21,13 +21,19 @@ import { useSyncExternalStore } from 'react';
 import { apiClient } from '@/api/client';
 import { type ApiError } from '@/api/errors';
 import { onSessionExpired } from '@/api/events';
-import { unregisterStoredPushToken } from '@/features/notifications/pushToken';
+import { abandonPush, pushRegistrar, unregisterPush } from '@/features/notifications/push';
 import { fetchTodayPlan, planKeys } from '@/features/plan/queries';
 import { deleteMe } from '@/features/settings/api';
 import { fetchMe, fetchProfile, settingsKeys } from '@/features/settings/queries';
 import { queryClient } from '@/lib/queryClient';
 import { continueToTabs, runStartup, type StartupDeps } from '@/lib/startup';
-import { clearPushToken, clearTimezoneAnswer, clearTokens, hasStoredTokens } from '@/lib/storage';
+import {
+  clearPushToken,
+  clearReminderPromptShownTo,
+  clearTimezoneAnswer,
+  clearTokens,
+  hasStoredTokens,
+} from '@/lib/storage';
 
 import { runDeleteAccount, runLogout, type LogoutDeps } from './accountCleanup';
 
@@ -86,9 +92,10 @@ const startupDeps: StartupDeps = {
   readToday: () => queryClient.fetchQuery({ queryKey: planKeys.today, queryFn: fetchTodayPlan, staleTime: 0 }),
   onNetworkCheck: () => setState({ phase: 'checking', hasPlan: null, error: null }),
   runBackgroundTasks: () => {
-    // Push token registration (Milestone 8) starts from here. The time zone
-    // check lives in TimezonePromptHost: it needs a sheet, and also runs each
-    // time the app returns to the foreground.
+    // Every app start and login; does nothing without the permission.
+    void pushRegistrar.start();
+    // The time zone check lives in TimezonePromptHost: it needs a sheet, and
+    // also runs each time the app returns to the foreground.
   },
 };
 
@@ -171,7 +178,7 @@ export function retrySession(): Promise<void> {
 
 // What leaving the account touches. The order is in accountCleanup.ts.
 const logoutDeps: LogoutDeps = {
-  unregisterPushToken: (signal) => unregisterStoredPushToken(signal),
+  unregisterPushToken: unregisterPush,
   clearTokens,
   clearPushToken,
   clearCache: () => queryClient.clear(), // the next account must never see this one's cached data
@@ -204,13 +211,26 @@ export function deleteAccount(): Promise<void> {
   return runDeleteAccount({
     ...logoutDeps,
     deleteMe: () => deleteMe(),
-    clearTimezoneAnswer,
+    clearPushToken: async () => {
+      // No unregister call: the account's tokens stopped working. Only make
+      // sure a registration under way cannot store the push token again.
+      abandonPush();
+      await pushRegistrar.settled();
+      await clearPushToken();
+    },
+    // What this account was already asked on this phone.
+    clearTimezoneAnswer: async () => {
+      await Promise.allSettled([clearTimezoneAnswer(), clearReminderPromptShownTo()]);
+    },
   });
 }
 
 // The API client gave up on refreshing: tokens are already cleared.
 onSessionExpired(() => {
   runId += 1;
+  // The stored push token is kept: without a session it cannot be unregistered
+  // now, and the next login registers the same phone for its own account.
+  abandonPush();
   queryClient.clear();
   setState({ phase: 'signedOut', hasPlan: null, error: null, authEntry: 'login' });
 });

@@ -7,15 +7,16 @@
  *   Reminders    switch, time, time zone (PATCH /onboarding/me, one field each)
  *   Account      email, display name, log out, delete account
  *   Support      version, platform, latest request id, Copy debug info
- *   (dev builds) link to the design gallery
+ *   (dev builds) link to the design gallery, copy the push token for testing
  *
  * Appearance, log out and support never wait for the server. Reminders and the
  * account details show a skeleton while loading and a notice with Try again if
  * they could not be loaded. Refreshes on focus; no polling.
  */
 
+import * as Clipboard from 'expo-clipboard';
 import { type Href, useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
 import { isApiError } from '@/api/errors';
@@ -29,6 +30,7 @@ import { RemindersCard } from '@/features/settings/components/RemindersCard';
 import { SupportCard } from '@/features/settings/components/SupportCard';
 import { useMe, useProfile } from '@/features/settings/queries';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { getPushToken } from '@/lib/storage';
 import { useThemedStyles } from '@/theme';
 
 // The gallery route only exists in dev; cast once so typed routes stay quiet
@@ -95,14 +97,28 @@ export default function SettingsScreen() {
         <SupportCard />
 
         {__DEV__ ? (
-          <Button
-            label="Open design gallery"
-            variant="ghost"
-            fullWidth
-            onPress={() => router.push(GALLERY_HREF)}
-          />
+          <>
+            <Button
+              label="Open design gallery"
+              variant="ghost"
+              fullWidth
+              onPress={() => router.push(GALLERY_HREF)}
+            />
+            <CopyPushToken />
+          </>
         ) : null}
       </View>
     </Screen>
   );
+}
+
+/** Development builds only: puts the push token on the clipboard, for docs/PUSH_TESTING.md. Never shown or logged. */
+function CopyPushToken() {
+  const [label, setLabel] = useState('Copy push token');
+  const copy = async () => {
+    const token = await getPushToken().catch(() => null);
+    if (token) await Clipboard.setStringAsync(token);
+    setLabel(token ? 'Push token copied' : 'No push token yet');
+  };
+  return <Button label={label} variant="ghost" fullWidth onPress={() => void copy()} />;
 }

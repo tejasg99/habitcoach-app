@@ -1,31 +1,55 @@
 /**
  * src/features/notifications/permission.ts
  *
- * Reads whether the phone lets this app show notifications. Read only: asking
- * for the permission comes with push (Milestone 8).
- *
- * Imports the permissions file directly rather than 'expo-notifications': the
- * package's index also starts push-token listening, which Expo Go on Android
- * does not support.
+ * Whether the phone lets this app show notifications, and asking for it.
+ * Asking is always preceded by src/app/reminder-permission.tsx.
  */
 
+import {
+  getPermissionsAsync,
+  IosAuthorizationStatus,
+  requestPermissionsAsync,
+  type NotificationPermissionsStatus,
+} from 'expo-notifications';
 import { useFocusEffect } from 'expo-router';
-import { getPermissionsAsync } from 'expo-notifications/build/NotificationPermissions';
-import { IosAuthorizationStatus } from 'expo-notifications/build/NotificationPermissions.types';
 import { useCallback, useState } from 'react';
 import { AppState } from 'react-native';
 
-/** 'unknown' = not asked yet, or the phone could not tell. Nothing is shown for it. */
-export type NotificationPermission = 'allowed' | 'denied' | 'unknown';
+/**
+ * allowed   notifications can be shown
+ * askable   not allowed, but the phone's own dialog can still be shown
+ * denied    only system settings can turn them on
+ * unknown   the phone could not tell; nothing is shown for it
+ */
+export type NotificationPermission = 'allowed' | 'askable' | 'denied' | 'unknown';
 
+export function toNotificationPermission(
+  result: Pick<NotificationPermissionsStatus, 'granted' | 'status' | 'canAskAgain' | 'ios'>,
+): NotificationPermission {
+  // `status`, not `granted`: Android can report the permission as granted
+  // while the app's notifications are switched off in system settings.
+  // iOS "provisional" delivers quietly, which still counts as allowed.
+  if (result.status === 'granted' || result.ios?.status === IosAuthorizationStatus.PROVISIONAL) return 'allowed';
+  // Android 13+ says "denied" before the app has ever asked, so `canAskAgain`
+  // decides. With the permission already granted there is nothing left to ask.
+  return result.canAskAgain && !result.granted ? 'askable' : 'denied';
+}
+
+/** Never shows a dialog. */
 export async function readNotificationPermission(): Promise<NotificationPermission> {
   try {
-    const result = await getPermissionsAsync();
-    // iOS "provisional" delivers quietly, which still counts as allowed.
-    if (result.granted || result.ios?.status === IosAuthorizationStatus.PROVISIONAL) return 'allowed';
-    // Android 13+ also says "denied" before the app has ever asked; the advice
-    // (turn it on in system settings) is right in that case too.
-    return result.status === 'denied' ? 'denied' : 'unknown';
+    return toNotificationPermission(await getPermissionsAsync());
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** Shows the phone's dialog. No badge is asked for: the app never shows one. */
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  try {
+    return toNotificationPermission(
+      await requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true, allowBadge: false } }),
+    );
   } catch {
     return 'unknown';
   }

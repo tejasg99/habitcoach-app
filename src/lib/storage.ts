@@ -2,8 +2,9 @@
  * src/lib/storage.ts
  *
  * Secure storage backed by expo-secure-store: the auth tokens, the registered
- * push token, and the last answer to the time zone prompt (kept here because
- * AsyncStorage is reserved for theme preferences).
+ * push token, the last answer to the time zone prompt, and who has seen the
+ * reminder explanation (the last two are here because AsyncStorage is reserved
+ * for theme preferences).
  *
  * Rules (from the brief):
  *  - Access tokens and refresh tokens ONLY go into expo-secure-store.
@@ -24,6 +25,7 @@ const KEYS = {
   refreshToken: 'auth.refresh_token',
   pushToken: 'push.expo_token',
   timezoneAnswer: 'timezone.last_answer',
+  reminderPromptShownTo: 'push.prompt_shown_to',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -77,14 +79,14 @@ export const secureTokenStore = {
 };
 
 // ---------------------------------------------------------------------------
-// Push token (Milestone 8 saves it after registering it with the API)
+// Push token (saved just before it is registered with the API)
 // ---------------------------------------------------------------------------
 
 export async function savePushToken(token: string): Promise<void> {
   await SecureStore.setItemAsync(KEYS.pushToken, token);
 }
 
-/** The push token this device registered, or null if it never did. */
+/** The push token this device registered (or tried to), or null if it never did. */
 export async function getPushToken(): Promise<string | null> {
   return SecureStore.getItemAsync(KEYS.pushToken);
 }
@@ -107,4 +109,20 @@ export async function getTimezoneAnswer(): Promise<string | null> {
 
 export async function clearTimezoneAnswer(): Promise<void> {
   await SecureStore.deleteItemAsync(KEYS.timezoneAnswer);
+}
+
+// ---------------------------------------------------------------------------
+// Reminder explanation screen (rules in features/notifications/reminderPrompt.ts)
+// ---------------------------------------------------------------------------
+
+export async function saveReminderPromptShownTo(userId: string): Promise<void> {
+  await SecureStore.setItemAsync(KEYS.reminderPromptShownTo, userId);
+}
+
+export async function getReminderPromptShownTo(): Promise<string | null> {
+  return SecureStore.getItemAsync(KEYS.reminderPromptShownTo);
+}
+
+export async function clearReminderPromptShownTo(): Promise<void> {
+  await SecureStore.deleteItemAsync(KEYS.reminderPromptShownTo);
 }

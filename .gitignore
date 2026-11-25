@@ -51,3 +51,8 @@ example
 .env
 .env.*
 !.env.example
+
+# Firebase: the app config (given to EAS as a file variable) and any service
+# account key (a secret; best kept outside this folder altogether)
+google-services.json
+*firebase-adminsdk*.json

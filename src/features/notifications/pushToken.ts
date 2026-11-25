@@ -1,10 +1,8 @@
 /**
  * src/features/notifications/pushToken.ts
  *
- * The logout half of the push token lifecycle. Milestone 8 adds the other
- * half: get the Expo push token, POST /notifications/register-token, then
- * `savePushToken(token)` (src/lib/storage.ts). Once a token is saved there,
- * logout unregisters it with no further changes.
+ * The unregister call of the push token lifecycle. Registering, and the order
+ * of the two at logout, are in registrar.ts and push.ts.
  */
 
 import { apiClient, type ApiClient } from '@/api/client';

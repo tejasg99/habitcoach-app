@@ -577,6 +577,37 @@ How it fits:
 - **Refresh after logout:** the auth middleware ignores a refresh that finishes after its refresh token was removed or
   replaced, so it can neither restore a deleted session nor sign out a new one.
 
+### Folder structure added in Milestone 8 (push)
+
+```
+src/features/notifications/
+  registrar.ts        createRegistrar(deps): supported -> allowed -> channel -> token -> save -> POST; stop / settled / abort
+  push.ts             the app's pushRegistrar, isPushSupported, prepareReminderChannel, unregisterPush, abandonPush
+  permission.ts       allowed / askable / denied / unknown; readNotificationPermission, requestNotificationPermission
+  reminderPrompt.ts   claimReminderPrompt: when the explanation screen opens by itself (pure)
+  tap.ts              screenFromData: only { screen: "today" } is accepted
+  foreground.ts       notification handler: shown silently while the app is open, no badge
+  routes.ts           REMINDER_PERMISSION_HREF
+  components/         NotificationsHost (in the tabs layout: taps, foreground retry, prompt), ReminderPreview
+src/app/reminder-permission.tsx   the explanation screen (open only together with the tabs)
+src/lib/storage.ts    + who has seen the explanation (SecureStore)
+eas.json              development (dev client), preview, production, each with its EAS environment
+app.config.js         app.json plus android.googleServicesFile
+docs/PUSH_TESTING.md  manual test procedure
+src/__tests__/        push-registration, reminder-prompt
+```
+
+How it fits:
+
+- **Registering:** the gate's background task calls `pushRegistrar.start()` at every app start and login; it never asks
+  for the permission. Returning to the foreground retries only if this session has not registered yet.
+- **The token is stored before the POST**, so logout can unregister it even if the answer was lost. Logout stops the
+  registrar, waits for a POST under way (inside the same 5 s limit), then unregisters. Deletion skips unregister.
+- **Asking:** only from the explanation screen, which opens once per account and phone when the tabs first open (so
+  after onboarding) if reminders are on, and when the Settings switch is turned on or "Set up notifications" is tapped.
+- **Taps:** `NotificationsHost` mounts only with the tabs, so a tap that starts the app from killed waits for the gate.
+  It closes a screen above the tabs, opens Today, refreshes plan and streak, and clears the stored tap.
+
 ### Planned structure (folders are created when a milestone needs them)
 
 ```
@@ -624,6 +655,12 @@ docs/
 - **M7: no new dependencies.** The notification permission is read from `expo-notifications/build/NotificationPermissions`
   (a deep import): the package index also starts push-token listening, which Expo Go on Android does not support. M8
   can switch to the normal import once a development build is used.
+
+- **M8: `expo-dev-client`** (approved by the owner, `npx expo install`). The deep import of `expo-notifications` is gone:
+  the package index now only warns in Expo Go on Android. `AndroidImportance` is imported by name because
+  `import/namespace` wrongly reports it on a namespace import.
+- **App ids (from the owner):** EAS project id and `owner` in `app.json`, Android package `com.aihabitcoach`. iOS is
+  skipped for now, so there is no `ios.bundleIdentifier`.
 
 ### Deviations from the brief
 
@@ -833,6 +870,26 @@ docs/
   a little warm; the accent swatches are the one colourful element, everything else neutral; the inset row from
   onboarding is the repeated detail); `docs/DESIGN.md` stayed binding for every visual value.
 
+### Deviations and additions in Milestone 8
+
+- **Android only for now:** the code handles iOS, but no iOS build is possible without a bundle identifier.
+- **Firebase:** `google-services.json` is gitignored (owner decision). `app.config.js` takes its path from the EAS file
+  variable `GOOGLE_SERVICES_JSON`, or the local file; with neither, the app builds without Android push. Sending also
+  needs an FCM V1 key in EAS. Steps in `docs/PUSH_TESTING.md`.
+- **The screen opens by itself only where push can work** (real phone, not Expo Go, project id set). From Settings it
+  opens anywhere the phone can still ask, so the design can be checked in Expo Go.
+- **Android channel `reminders`**, default importance (sound, no heads-up banner). It is also the plugin's
+  `defaultChannel`, because the server sends no channel id. Importance cannot be raised later for installed apps.
+- **Session expired:** the push token stays registered until the next login (there is no valid token to unregister
+  it with); logging in registers the phone for that account.
+- **Logout while the server sleeps or the phone is offline** cannot unregister (5 s limit, as in M7).
+- **Dev builds have "Copy push token" in Settings** for testing; the token is never shown or logged.
+- **No notification icon yet:** Android shows a default shape. It belongs with the icons in M9.
+- **New copy** (approved by the owner): "One nudge on quiet days" and the rest of the explanation screen, "Notifications aren't
+  set up on this phone", "Set up notifications", channel "Daily reminders".
+- The `unslop` skill was applied as direction (the example reminder is the one rich element, with the server's real
+  words; everything else is quiet); `docs/DESIGN.md` stayed binding for every visual value.
+
 ### Milestone status
 
 | Milestone | Status |
@@ -845,5 +902,5 @@ docs/
 | M5 Today | Done (tested on device in Expo Go by the owner) |
 | M6 Progress | Done (tested on device by the owner; month markers in the calendar added afterwards, not yet seen on device) |
 | M7 Settings | Done (tested on device by the owner; the neutral Log out button and keeping the theme after account deletion were changed afterwards, not yet seen on device) |
-| M8 | Not started |
+| M8 Push | Code done; not tested on a device yet (`docs/PUSH_TESTING.md`); FCM key and EAS file variable pending |
 | M9 | Not started |

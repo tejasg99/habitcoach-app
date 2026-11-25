@@ -77,3 +77,18 @@ entry per date from start_date to end_date, oldest first". Optionally add `is_to
 
 **Workaround.** `toChartData` in `src/features/progress/chartData.ts` treats `day === end_date` as today; covered
 by `src/__tests__/progress-chart.test.ts`.
+
+## 5. Push: no receipt check and no expiry on reminders (found in Milestone 8)
+
+**What.** `backend/app/services/expo_push.py` reads the tickets Expo returns at once, but never the **receipts** (Expo's
+`push/getReceipts`), and `_to_payload` sets no `ttl` or `expiration`.
+
+**Why it matters.** Delivery errors from Apple and Google, including most `DeviceNotRegistered` and all credential
+errors, appear only in receipts. Dead tokens can stay stored, and wrong credentials look like "sent". Without a
+`ttl`, a phone that was off can show yesterday's reminder the next day.
+
+**Suggested change.** Store the ticket ids, fetch the receipts in a later sweep, prune `DeviceNotRegistered`, log the
+rest. Add a `ttl` (seconds), for example until local midnight.
+
+**Workaround.** None possible in the app. `docs/PUSH_TESTING.md` says where to see receipts while testing. No
+`channelId` is needed: the app makes `reminders` Android's default channel.
