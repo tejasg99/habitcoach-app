@@ -10,6 +10,7 @@
 
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useThemedStyles } from '@/theme';
@@ -28,6 +29,7 @@ export type SheetProps = {
 
 export function Sheet({ visible, title, onClose, closeLabel, busy = false, children }: SheetProps) {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
 
   const styles = useThemedStyles((t) => ({
     // Fills the screen; the sheet is pushed to the bottom edge.
@@ -66,7 +68,15 @@ export function Sheet({ visible, title, onClose, closeLabel, busy = false, child
   const close = busy ? undefined : onClose;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => close?.()} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      // Slides up normally; with the OS "reduce motion" setting on it only
+      // fades in (design doc 8: replace movement with simple fades).
+      animationType={reduceMotion ? 'fade' : 'slide'}
+      onRequestClose={() => close?.()}
+      statusBarTranslucent
+    >
       {/* "padding" lifts the sheet by the keyboard height on both platforms. */}
       <KeyboardAvoidingView behavior="padding" style={styles.backdrop}>
         <Pressable

@@ -50,7 +50,7 @@ export function ReminderPreview({ time }: { time: string }) {
         <View style={styles.text}>
           <View style={styles.meta}>
             <Text variant="caption" color="textSecondary">
-              Habit coach
+              AI Habit Coach
             </Text>
             <Text variant="caption" color="textSecondary" tabular>
               {`Around ${time}`}

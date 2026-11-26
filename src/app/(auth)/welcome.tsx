@@ -36,7 +36,7 @@ export default function WelcomeScreen() {
   return (
     <Screen scroll contentStyle={styles.content}>
       <Text variant="bodyStrong" color="textSecondary" style={styles.brand}>
-        Habit coach
+        AI Habit Coach
       </Text>
 
       <View style={styles.preview}>

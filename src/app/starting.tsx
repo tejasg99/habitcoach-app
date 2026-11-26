@@ -56,7 +56,7 @@ export default function StartingScreen() {
     <Screen contentStyle={styles.content}>
       <View style={styles.centre} accessibilityLiveRegion="polite">
         <Text variant="title2" style={styles.name}>
-          Habit coach
+          AI Habit Coach
         </Text>
         <Text variant="callout" color="textSecondary">
           Getting your day ready

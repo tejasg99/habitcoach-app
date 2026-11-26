@@ -10,7 +10,7 @@
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
-import { isApiError } from '@/api/errors';
+import { isUnexpectedError } from '@/api/errors';
 import { CopyDebugInfo } from '@/components/layout/CopyDebugInfo';
 import { Notice } from '@/components/layout/Notice';
 import { Button, Sheet, Text } from '@/components/ui';
@@ -56,7 +56,7 @@ export function DeleteAccountSheet({ onClose }: { onClose: () => void }) {
       {message ? (
         <View style={styles.error}>
           <Notice message={message}>
-            {isApiError(error) && (error.status ?? 0) >= 500 ? <CopyDebugInfo /> : null}
+            {isUnexpectedError(error) ? <CopyDebugInfo /> : null}
           </Notice>
         </View>
       ) : null}

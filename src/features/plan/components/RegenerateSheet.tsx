@@ -12,6 +12,7 @@
  */
 
 import { Modal, Pressable, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Text } from '@/components/ui';
@@ -25,6 +26,7 @@ export type RegenerateSheetProps = {
 
 export function RegenerateSheet({ visible, onConfirm, onCancel }: RegenerateSheetProps) {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
 
   const styles = useThemedStyles((t) => ({
     // Fills the screen; the sheet is pushed to the bottom edge.
@@ -58,7 +60,14 @@ export function RegenerateSheet({ visible, onConfirm, onCancel }: RegenerateShee
   }));
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      // Slides up normally; with the OS "reduce motion" setting on it only fades in.
+      animationType={reduceMotion ? 'fade' : 'slide'}
+      onRequestClose={onCancel}
+      statusBarTranslucent
+    >
       <View style={styles.backdrop}>
         <Pressable style={styles.scrim} onPress={onCancel} accessibilityRole="button" accessibilityLabel="Keep my plan" />
         {/* Bottom padding clears the home indicator, plus 24 of air. */}

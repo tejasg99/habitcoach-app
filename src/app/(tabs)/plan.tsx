@@ -16,17 +16,18 @@
  * /plan/today fails, nothing is highlighted and the week opens on Monday.
  *
  * States: skeleton while loading, the "Generate my plan" empty state on 404,
- * a retry notice for other errors.
+ * a retry notice for other errors (+ Copy debug info when unexpected).
+ * Refreshes on focus and on pull to refresh.
  */
 
-import { useState, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { useCallback, useState, type ReactNode } from 'react';
+import { RefreshControl, View } from 'react-native';
 
 import { CopyDebugInfo } from '@/components/layout/CopyDebugInfo';
 import { Notice } from '@/components/layout/Notice';
 import { TAB_BAR_CLEARANCE } from '@/components/layout/TabPlaceholder';
 import { Button, Chip, Screen, Skeleton, Text } from '@/components/ui';
-import { isApiError } from '@/api/errors';
+import { isApiError, isUnexpectedError } from '@/api/errors';
 import { DayChips } from '@/features/plan/components/DayChips';
 import { DayPlan } from '@/features/plan/components/DayPlan';
 import { GeneratePlanEmptyState } from '@/features/plan/components/GeneratePlanEmptyState';
@@ -43,9 +44,23 @@ import { useTheme, useThemedStyles } from '@/theme';
 export default function PlanScreen() {
   const week = useWeekPlan();
   const today = useTodayPlan();
-  const { radius } = useTheme();
+  const { colors, radius } = useTheme();
   useRefetchOnFocus(week.refetch);
   useRefetchOnFocus(today.refetch);
+
+  // Pull to refresh, as on Today and Progress. Our own flag, so only a pull
+  // shows the spinner (not focus refetches).
+  const refetchWeek = week.refetch;
+  const refetchToday = today.refetch;
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchWeek(), refetchToday()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchWeek, refetchToday]);
 
   const styles = useThemedStyles((t) => ({
     // Screen title with air under the status bar, like every top-level screen.
@@ -62,7 +77,6 @@ export default function PlanScreen() {
   } else if (week.error && isNoPlan(week.error)) {
     body = <GeneratePlanEmptyState />;
   } else if (week.error) {
-    const serverSide = isApiError(week.error) && (week.error.status ?? 0) >= 500;
     body = (
       <Notice message={isApiError(week.error) ? week.error.message : "We couldn't load your plan. Try again."}>
         <Button
@@ -72,13 +86,14 @@ export default function PlanScreen() {
           loading={week.isFetching}
           onPress={() => void week.refetch()}
         />
-        {serverSide ? <CopyDebugInfo /> : null}
+        {isUnexpectedError(week.error) ? <CopyDebugInfo /> : null}
       </Notice>
     );
   } else {
     // Loading: skeleton blocks in the shape of the real content (no spinner).
     body = (
-      <View accessibilityLabel="Loading your plan">
+      // One element for screen readers ("Loading your plan"), like the other tabs.
+      <View accessible accessibilityLabel="Loading your plan" accessibilityRole="progressbar">
         <Skeleton height={36} radius={radius.pill} />
         <View style={styles.skeletonRows}>
           <Skeleton height={28} width="40%" />
@@ -91,7 +106,20 @@ export default function PlanScreen() {
   }
 
   return (
-    <Screen scroll bottomSpace={TAB_BAR_CLEARANCE}>
+    <Screen
+      scroll
+      bottomSpace={TAB_BAR_CLEARANCE}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void onRefresh()}
+          // Spinner in the accent (iOS tint, Android colours) on a raised disc.
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.surfaceRaised}
+        />
+      }
+    >
       <Text variant="title1" accessibilityRole="header" style={styles.title}>
         Plan
       </Text>

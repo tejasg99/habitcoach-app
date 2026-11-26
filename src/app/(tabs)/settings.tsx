@@ -19,7 +19,7 @@ import { type Href, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
-import { isApiError } from '@/api/errors';
+import { isApiError, isUnexpectedError } from '@/api/errors';
 import { CopyDebugInfo } from '@/components/layout/CopyDebugInfo';
 import { Notice } from '@/components/layout/Notice';
 import { TAB_BAR_CLEARANCE } from '@/components/layout/TabPlaceholder';
@@ -79,7 +79,7 @@ export default function SettingsScreen() {
               loading={me.isFetching || profile.isFetching}
               onPress={() => void refetch()}
             />
-            {isApiError(failed) && (failed.status ?? 0) >= 500 ? <CopyDebugInfo /> : null}
+            {isUnexpectedError(failed) ? <CopyDebugInfo /> : null}
           </Notice>
         ) : null}
 
@@ -93,7 +93,7 @@ export default function SettingsScreen() {
           </Card>
         ) : null}
 
-        <AccountCard me={me.data} />
+        <AccountCard me={me.data} loading={!me.data && !me.error} />
         <SupportCard />
 
         {__DEV__ ? (

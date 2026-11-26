@@ -638,7 +638,8 @@ docs/
 - **M1b: no new dependencies.** Everything needed was already installed (`@expo-google-fonts/dm-sans`, `expo-font`, `expo-linear-gradient`, `expo-haptics`, `react-native-svg`, `lucide-react-native`, `react-native-reanimated`, AsyncStorage, `expo-system-ui`). `expo-navigation-bar` was NOT added (not pre-approved); the Android navigation bar follows the resolved mode through `Appearance.setColorScheme` (see deviations).
 - **Lint guard rails (M1b):** `eslint.config.js` forbids `borderWidth` (and per-side variants) anywhere in `src/`, and raw hex / `rgb()` / `hsl()` string literals outside `src/theme/` and `src/__tests__/`.
 - **Jest:** AsyncStorage is mocked globally in `jest.setup.js`.
-- **Removal candidates (installed, unused for now):** `@expo/ui`, `expo-glass-effect`, `expo-symbols`.
+- **Removal candidates (installed, unused for now):** `@expo/ui`, `expo-glass-effect`, `expo-symbols`. **Removed in M9**
+  (with `expo-image` and `expo-web-browser`, owner approved).
 - **M2: no new dependencies.** Uses the already-installed `openapi-fetch`, `expo-secure-store`, `react-hook-form`,
   `zod`, `@hookform/resolvers`. TanStack Query is not wired yet (nothing needs caching until Milestone 3/4).
 - **M2 follow-up: `expo-clipboard`** (approved by the owner, installed with `npx expo install`) for "Copy debug info".
@@ -661,6 +662,11 @@ docs/
   `import/namespace` wrongly reports it on a namespace import.
 - **App ids (from the owner):** EAS project id and `owner` in `app.json`, Android package `com.aihabitcoach`. iOS is
   skipped for now, so there is no `ios.bundleIdentifier`.
+- **M9: no new dependencies; five removed** (owner approved): `@expo/ui`, `expo-glass-effect`, `expo-symbols`,
+  `expo-image` (never imported), `expo-web-browser` (only listed as an `app.json` plugin, which was removed with it).
+  Kept although not imported: `expo-linking`, `react-native-screens`, `react-native-gesture-handler`,
+  `react-native-worklets` (required peers of Expo Router / Reanimated), `expo-dev-client` (used by the build),
+  `react-dom` and `react-native-web` (the untouched web config).
 
 ### Deviations from the brief
 
@@ -890,6 +896,77 @@ docs/
 - The `unslop` skill was applied as direction (the example reminder is the one rich element, with the server's real
   words; everything else is quiet); `docs/DESIGN.md` stayed binding for every visual value.
 
+### Changes in Milestone 9 (polish and release)
+
+No new folders. Touched: `src/api/errors.ts` (+ `isUnexpectedError`), the four tab screens, onboarding, the starting
+screen, `Button`, `Sheet`, `RegenerateSheet`, `AccountCard`, `DeleteAccountSheet`, `generate.ts`,
+`useRefetchOnFocus.ts`, `app.json`, `eas.json`, `README.md`.
+
+- **"Copy debug info" follows one rule:** `isUnexpectedError(error)` is true for 5xx, timeouts, network failures,
+  `unexpected` and any non-API error; false for 401, 404, 409, 422, 429 and 503, whose message already says what to
+  do. Before, most screens offered it on 5xx only, so a timeout (the likeliest failure on the sleeping server) had no
+  debug info. Used on Today, Plan, Progress, Settings, onboarding, delete account and plan generation. The starting
+  screen's error state always shows it. Tested in `errors.test.ts`.
+- **Foreground refresh:** `useRefetchOnFocus` also refetches when the app returns to the foreground while that screen
+  is showing. Before, a phone left overnight kept yesterday's Today list until a tab switch. Event driven, no polling.
+- **Plan tab** gets pull to refresh (Today and Progress already had it) and its loading skeleton is one
+  screen-reader element ("Loading your plan", progressbar), as on the other tabs.
+- **Settings:** the Account card shows two skeleton rows while the account loads, instead of nothing.
+- **Touch targets:** `Button size="sm"` (36 tall) gets 4 px `hitSlop` above and below, so it reaches 44 pt.
+- **Reduce motion:** both bottom sheets fade instead of sliding when the OS setting is on.
+- **App name** is "AI Habit Coach" (owner): `app.json` `name`, the welcome and starting screens, and the example
+  reminder. `slug` and `scheme` stay `ai-habit-coach`.
+- **Logo (owner's direction: design-scheme background with "HC" initials, also for notifications):** a rounded
+  monoline "HC" monogram (capsule strokes and an open ring with round ends, like the app's pill shapes) in Sage
+  `accent` `#2F7D5B` on `bg` `#F7F5F2`. It is drawn by `scripts/generate-brand-assets.js` (no dependencies: a
+  signed distance function for smooth edges, PNGs written with Node's zlib), which writes `icon.png` (opaque),
+  the adaptive foreground (inside the 66% safe zone) and monochrome layers, light and dark splash marks
+  (`#6CC49A` on `#141311` for dark) and a 96 px white `notification-icon.png`. `app.json`: splash `image` with
+  `imageWidth` 150 plus `dark.image`; `expo-notifications` `icon` and `color` `#2F7D5B`; `ios.icon` (the template's
+  `assets/expo.icon` bundle) removed so iOS uses `icon.png`. Still in `assets/` but unreferenced:
+  `assets/expo.icon/` and `android-icon-background.png` (can be deleted); `favicon.png` (web, out of scope).
+- **`googleServicesFile` removed from `app.json`** (owner): the path only comes from `app.config.js` (EAS file
+  variable or the local file), so a fresh clone without the file can still prebuild.
+- **Local build guide** in `docs/BUILDING.md`: EAS cloud, `eas build --local` (macOS/Linux/WSL2), and prebuild +
+  Gradle on Windows (Android Studio, JDK 17, `ANDROID_HOME`, signing with your own keystore, version codes).
+- **EAS (owner: not going to a store):** `preview` and `production` build APKs (`android.buildType: "apk"`);
+  `development` stays the dev-client debug APK. No new ids. The README documents `eas env:create` for
+  `EXPO_PUBLIC_API_URL` and `GOOGLE_SERVICES_JSON` per environment.
+- **Checked and left as they are:** queries keep cached data when a refetch fails offline (no error card over
+  content); the waking toast, 90 s cold timeout and 120 s generate timeout are unchanged; TanStack Query's
+  `onlineManager` is not wired to the network state, so nothing refetches by itself when the connection comes back
+  (pull to refresh or Try again does).
+- **Accessibility findings not changed (design doc is binding):** inactive tab labels use `textTertiary` (about 3.2:1
+  in light mode), which the doc specifies but is below its own 4.5:1 text rule; the heatmap's tiny "1" month marker
+  does not scale (`maxFontSizeMultiplier={1}`, it must fit a 28 px square).
+- **`expo-doctor`:** 19/20 checks pass. Newer SDK 58 patches exist (`expo` 58.1.0, `expo-router`, `expo-notifications`,
+  `expo-splash-screen`, `expo-dev-client`, `jest-expo`); not upgraded in this milestone.
+
+### Acceptance checklist walkthrough (M9)
+
+Legend: **T** verified by tests, **A** verified by the agent (code review, config, local commands), **O** needs the
+owner on a device.
+
+| Item | Status |
+|---|---|
+| Scaffold structure and SDK kept | A (SDK 58, Expo Router, typed routes, React Compiler; deviations listed above) |
+| Typed client from `api/openapi.json`, script in README | A + CI drift check (`npm run api:types` leaves no diff) |
+| Sign up, log in, restart without logging in | T (startup gate, auth API) + O |
+| Onboarding saves, device time zone sent | T (`onboarding-request`) + O |
+| Generate a plan with loading state; every error status has a message | T (`plan-generate`, `errors`) + O for a real generation |
+| Check an item (repeat tap never errors), undo, streak and progress update | T (`today-logging`) + O |
+| Streak at-risk state | T (`today-checklist` streak copy) + O |
+| Progress chart shows no-plan days as empty, not 0% | T (`progress-chart`) |
+| `ACCESS_TOKEN_EXPIRE_MINUTES=1`: silent refresh after two minutes | T (`client`: single-flight refresh, retry once) + O |
+| Cold-start message when the server is slow | T (`client` slow tracking) + O against the sleeping Render server |
+| Push token registered after login, removed on logout; tap opens Today | T (`push-registration`, `account-cleanup`) + O (`docs/PUSH_TESTING.md`) |
+| Reminders off in Settings, independent of the OS permission | T (`settings-patch`) + O |
+| Device time zone change prompts once | T (`timezone-prompt`) + O |
+| Account deletion confirms, clears storage, returns to login | T (`account-cleanup`) + O |
+| Wellness disclaimer on the plan screens | A (`WellnessNote` on Plan and in the generate empty state) |
+| Every screen matches the design doc | A (lint rules, contrast tests) + O visual review in both modes with two accents |
+| CI green | A (latest run on `main`, e812acd, passed; M9 not pushed yet; the same commands pass locally) |
+
 ### Milestone status
 
 | Milestone | Status |
@@ -903,4 +980,4 @@ docs/
 | M6 Progress | Done (tested on device by the owner; month markers in the calendar added afterwards, not yet seen on device) |
 | M7 Settings | Done (tested on device by the owner; the neutral Log out button and keeping the theme after account deletion were changed afterwards, not yet seen on device) |
 | M8 Push | Code done; not tested on a device yet (`docs/PUSH_TESTING.md`); FCM key and EAS file variable pending |
-| M9 | Not started |
+| M9 Polish and release | Done in code (lint, type-check, 422 tests green). Pending with the owner: first release build (EAS or local, `docs/BUILDING.md`), the device checks in the acceptance walkthrough |

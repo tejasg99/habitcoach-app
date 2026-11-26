@@ -40,7 +40,7 @@ import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { apiClient } from '@/api/client';
-import { isApiError, mapApiError, unwrap, type ApiError } from '@/api/errors';
+import { isApiError, isUnexpectedError, mapApiError, unwrap, type ApiError } from '@/api/errors';
 import { CopyDebugInfo } from '@/components/layout/CopyDebugInfo';
 import { Notice } from '@/components/layout/Notice';
 import { Button, IconButton, Text } from '@/components/ui';
@@ -303,7 +303,7 @@ export default function OnboardingScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         {saveError ? (
           <Notice title="Your answers were not saved" message={saveError.message}>
-            {saveError.kind === 'server' || saveError.kind === 'unexpected' ? <CopyDebugInfo /> : null}
+            {isUnexpectedError(saveError) ? <CopyDebugInfo /> : null}
           </Notice>
         ) : null}
         {formMessage ? <Notice message={formMessage} /> : null}

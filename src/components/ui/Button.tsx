@@ -50,6 +50,9 @@ const VARIANT_COLORS: Record<ButtonVariant, { fill: keyof ThemeColors | null; la
   neutralDanger: { fill: 'surfaceMuted', label: 'dangerText' },
 };
 
+/** Touch area added around `sm` buttons: (44 - 36) / 2 = 4 px above and below. */
+const SMALL_HIT_SLOP = { top: 4, bottom: 4 };
+
 export function Button({
   label,
   onPress,
@@ -100,6 +103,9 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: inactive, busy: loading }}
+      // The small size is 36 tall; 4 px of extra touch area above and below
+      // brings it to the 44 pt minimum without changing how it looks.
+      hitSlop={size === 'sm' ? SMALL_HIT_SLOP : undefined}
       style={({ pressed }) => {
         // Pressed fill: primary goes to accentDeep in light mode; in dark mode
         // (and for every other variant) we dim to 90% instead.

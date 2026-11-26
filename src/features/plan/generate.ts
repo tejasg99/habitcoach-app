@@ -26,7 +26,7 @@
  * works out calendar dates or "today".
  */
 
-import { isApiError, mapApiError, type ApiError } from '@/api/errors';
+import { isApiError, isUnexpectedError, mapApiError, type ApiError } from '@/api/errors';
 
 /** Short pause before the single retry after a 409 "a generation just finished". */
 export const CONFLICT_RETRY_WAIT_SECONDS = 5;
@@ -117,16 +117,23 @@ export function describeGenerateFailure(error: unknown, afterConflict: boolean):
     }
 
     case 'timeout':
-      return { ...base, kind: 'timeout', message: GENERATE_COPY.timeout, retry: { type: 'now' }, checkForPlan: true };
+      return {
+        ...base,
+        kind: 'timeout',
+        message: GENERATE_COPY.timeout,
+        retry: { type: 'now' },
+        checkForPlan: true,
+        showDebugInfo: true,
+      };
 
     case 'network':
-      return { ...base, kind: 'network', retry: { type: 'now' }, checkForPlan: true };
+      return { ...base, kind: 'network', retry: { type: 'now' }, checkForPlan: true, showDebugInfo: true };
 
     case 'sessionExpired':
       return { ...base, kind: 'sessionExpired', retry: { type: 'none' } };
 
     default:
-      return { ...base, kind: 'other', retry: { type: 'now' }, showDebugInfo: apiError.kind === 'server' };
+      return { ...base, kind: 'other', retry: { type: 'now' }, showDebugInfo: isUnexpectedError(apiError) };
   }
 }
 

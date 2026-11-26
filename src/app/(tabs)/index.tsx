@@ -22,7 +22,7 @@ import { CalendarCheck } from 'lucide-react-native';
 import { useCallback, useState, type ReactNode } from 'react';
 import { RefreshControl, View } from 'react-native';
 
-import { isApiError } from '@/api/errors';
+import { isApiError, isUnexpectedError } from '@/api/errors';
 import { CopyDebugInfo } from '@/components/layout/CopyDebugInfo';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Notice } from '@/components/layout/Notice';
@@ -104,7 +104,7 @@ export default function TodayScreen() {
           loading={today.isFetching}
           onPress={() => void today.refetch()}
         />
-        {isApiError(error) && (error.status ?? 0) >= 500 ? <CopyDebugInfo /> : null}
+        {isUnexpectedError(error) ? <CopyDebugInfo /> : null}
       </Notice>
     );
   } else if (data.items.length === 0) {

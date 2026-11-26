@@ -3,7 +3,7 @@
  * row, plus the defensive cases (non-JSON bodies, thrown errors).
  */
 
-import { ERROR_COPY, mapApiError, parseFieldErrors, type ApiOperation } from '@/api/errors';
+import { ERROR_COPY, isUnexpectedError, mapApiError, parseFieldErrors, type ApiOperation } from '@/api/errors';
 import { TimeoutError } from '@/api/transport';
 import { splitFieldErrors } from '@/features/auth/forms';
 
@@ -112,5 +112,29 @@ describe('splitFieldErrors (form wiring)', () => {
   it('falls back to the generic message when a 422 has no usable detail', () => {
     const error = map('signup', 422, 'not json');
     expect(splitFieldErrors(error, { email: 'email' })).toEqual({ fields: {}, formMessage: ERROR_COPY.validation });
+  });
+});
+
+describe('isUnexpectedError (when to offer Copy debug info)', () => {
+  it('is true for 5xx, timeouts, network failures and non-API errors', () => {
+    expect(isUnexpectedError(map('read_me', 500))).toBe(true);
+    expect(isUnexpectedError(mapApiError({ operation: 'read_me', cause: new TimeoutError(90_000) }))).toBe(true);
+    expect(isUnexpectedError(mapApiError({ operation: 'read_me', cause: new TypeError('Network request failed') }))).toBe(true);
+    expect(isUnexpectedError(new Error('bug'))).toBe(true);
+  });
+
+  it('is false for expected answers and for no error', () => {
+    for (const [operation, status] of [
+      ['get_today_plan', 404],
+      ['remove_log', 409],
+      ['update_my_profile', 422],
+      ['generate_weekly_plan', 429],
+      ['read_me', 401],
+      ['generate_weekly_plan', 503],
+    ] as const) {
+      expect(isUnexpectedError(map(operation, status))).toBe(false);
+    }
+    expect(isUnexpectedError(null)).toBe(false);
+    expect(isUnexpectedError(undefined)).toBe(false);
   });
 });

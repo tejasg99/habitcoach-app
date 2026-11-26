@@ -87,6 +87,20 @@ export function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;
 }
 
+/** The kinds the brief calls "unexpected error, offline, or server waking up". */
+const UNEXPECTED_KINDS: ReadonlySet<ApiErrorKind> = new Set(['server', 'unexpected', 'network', 'timeout']);
+
+/**
+ * Should an error screen offer "Copy debug info"? Yes for failures the user
+ * cannot fix themselves (5xx, no answer, anything the mapping did not expect,
+ * or a thrown non-API error). No for expected answers such as 404, 409, 422,
+ * 429 or an ended session, where the message already says what to do.
+ */
+export function isUnexpectedError(error: unknown): boolean {
+  if (error === null || error === undefined) return false;
+  return isApiError(error) ? UNEXPECTED_KINDS.has(error.kind) : true;
+}
+
 // ---------------------------------------------------------------------------
 // Copy. Plain and calm; no raw server text except 422 field messages.
 // ---------------------------------------------------------------------------

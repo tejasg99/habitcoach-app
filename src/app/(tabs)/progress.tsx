@@ -23,7 +23,7 @@ import { ChartNoAxesColumn } from 'lucide-react-native';
 import { useCallback, useState, type ReactNode } from 'react';
 import { RefreshControl, View } from 'react-native';
 
-import { isApiError } from '@/api/errors';
+import { isApiError, isUnexpectedError } from '@/api/errors';
 import { CopyDebugInfo } from '@/components/layout/CopyDebugInfo';
 import { EmptyState } from '@/components/layout/EmptyState';
 import { Notice } from '@/components/layout/Notice';
@@ -95,7 +95,7 @@ export default function ProgressScreen() {
           loading={progress.isFetching}
           onPress={() => void progress.refetch()}
         />
-        {isApiError(error) && (error.status ?? 0) >= 500 ? <CopyDebugInfo /> : null}
+        {isUnexpectedError(error) ? <CopyDebugInfo /> : null}
       </Notice>
     );
   } else if (isProgressEmpty(data)) {
